@@ -1,0 +1,17 @@
+# CMAKE Mess
+/cmake-build-debug/
+
+# PyCharm Mess
+.idea
+
+# Jupyter Mess
+.ipynb_checkpoints
+
+# GUROBI License & other license files
+*.lic
+
+# Builds
+builds/*
+
+# PDFs
+*.pdf

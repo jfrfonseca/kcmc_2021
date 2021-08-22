@@ -1,0 +1,78 @@
+version: "3.9"
+
+services:
+
+  compiler:
+    profiles:
+      - compiler
+    build:
+      dockerfile: compiler.dockerfile
+      context: .
+    command: bash /app/src/compiler_entrypoint.sh
+    volumes:
+      - ./CMakeLists.txt:/app/CMakeLists.txt:ro
+      - ./src:/app/src:ro
+      - ./builds:/app/builds:rw
+
+  redis:
+    profiles:
+      - generator
+      - notebook
+      - optimizer
+    image: "redis:alpine"
+    command: redis-server /data/redis.conf
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data:/data:rw
+
+  generator:
+    profiles:
+      - generator
+    depends_on:
+      - redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: "python -u /src/instance_generator_driver.py /data/instance_generator_configurations.csv 10000 7 5"
+    build:
+      dockerfile: instance_generator.dockerfile
+      context: .
+    volumes:
+      - ./data:/data:ro
+      - ./src:/src:ro
+    deploy:
+      mode: replicated
+      replicas: 6
+
+  notebook:
+    profiles:
+      - notebook
+    depends_on:
+      - redis
+    build:
+      dockerfile: notebook.dockerfile
+      context: .
+    ports:
+      - "8888:8888"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      GRB_CLIENT_LOG: 3
+      PYTHONPATH: "/home/gurobi/0_analysis/src"
+    volumes:
+      - ./data/kcmc_gurobi.lic:/opt/gurobi/gurobi.lic:ro
+      - ./data:/data:ro
+      - ./analysis:/home/gurobi/0_analysis:rw
+      - ./src:/home/gurobi/0_analysis/src:ro
+
+#  optimizer:
+#    build: .
+#    ports:
+#      - "8888:8888"
+#    extra_hosts:
+#      - "host.docker.internal:host-gateway"
+#    environment:
+#      GRB_CLIENT_LOG: 3
+#    volumes:
+#      - ./kcmc_gurobi.lic:/opt/gurobi/gurobi.lic:ro
+#      - .:/home/gurobi/KCMC:rw

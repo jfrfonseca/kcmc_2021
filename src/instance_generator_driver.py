@@ -6,6 +6,8 @@ import traceback
 import asyncio
 import aioredis
 
+LOCK_TIME = 300
+
 
 async def generate_instances(
         random_seeds:list, k_range: int, m_range: int,
@@ -24,7 +26,7 @@ async def generate_instances(
     async with redis.pipeline(transaction=True) as pipe:
         has_lock, _ = await (pipe
             .setnx('LOCK:'+instance_key, str(time.time_ns()))
-            .expire('LOCK:'+instance_key, 60)
+            .expire('LOCK:'+instance_key, LOCK_TIME)
             .execute()
         )
 
@@ -73,6 +75,7 @@ async def generate_instances(
 
 if __name__ == '__main__':
     try:
+        time.sleep(30)
 
         # parse the arguments
         configs_file = sys.argv[1]

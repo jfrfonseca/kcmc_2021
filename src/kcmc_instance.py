@@ -139,9 +139,7 @@ def parse_block(df):
 def parse_key(instance_key):
     key = instance_key.replace('INSTANCE', 'KCMC').replace(':', '_')
     if os.path.exists(sys.argv[1] + '/' + key + '.pq'):
-        tam = len(pd.read_parquet(sys.argv[1] + '/' + key + '.pq'))
-        if (tam % 10000) == 0:
-            return key, tam
+        return key, -1
 
     # If we have to reprocess, start our own redis connection and extract the data
     df = []

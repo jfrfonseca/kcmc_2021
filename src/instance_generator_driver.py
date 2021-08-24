@@ -6,7 +6,7 @@ import traceback
 import asyncio
 import aioredis
 
-LOCK_TIME = 300
+LOCK_TIME = 10000
 
 
 async def generate_instances(

@@ -30,7 +30,9 @@ async def generate_instances(
             .execute()
         )
 
-    if not has_lock: return existing_instances, -1
+    if not has_lock:
+        time.sleep(0.05)  # Prevent REDIS from overheating
+        return existing_instances, -1
     print('GOT LOCK ::', instance_key)
 
     # Run the command in a subprocess
@@ -98,14 +100,19 @@ if __name__ == '__main__':
 
         # For each configuration, generate instances
         for num_pois, num_sensors, num_sinks, area_side, covg_radius, comm_radius in configs_to_run:
-            previous_work, current_work = asyncio.run(
-                generate_instances(
-                    random_seeds, k_range, m_range,
-                    num_pois, num_sensors, num_sinks, area_side, covg_radius, comm_radius,
-                    target_instances
+            try:
+                previous_work, current_work = asyncio.run(
+                    generate_instances(
+                        random_seeds, k_range, m_range,
+                        num_pois, num_sensors, num_sinks, area_side, covg_radius, comm_radius,
+                        target_instances
+                    )
                 )
-            )
-            print(f'>>>> KCMC:{num_pois}:{num_sensors}:{num_sinks}:{area_side}:{covg_radius}:{comm_radius}', previous_work, current_work)
+                print(f'>>>> KCMC:{num_pois}:{num_sensors}:{num_sinks}:{area_side}:{covg_radius}:{comm_radius}', previous_work, current_work)
+            except Exception as exp:
+                if {'connection', 'reset', 'peer'}.issubset(str(exp).lower().strip()):
+                    time.sleep(10)
+                else: raise exp
 
     except Exception as exp:
         traceback.print_exc()

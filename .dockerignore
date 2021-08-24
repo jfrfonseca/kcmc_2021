@@ -1,0 +1,3 @@
+data/instances.parquet
+data/*.rdb
+data/*.aof

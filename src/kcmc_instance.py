@@ -80,3 +80,99 @@ class KCMC_Instance(object):
         if key not in _dict:
             _dict[key] = set()
         _dict[key].add(value)
+
+
+# ######################################################################################################################
+# RUNTIME
+
+
+def parse_evaluation(evaluation):
+    result = []
+    for k_m, msg_k, msg_m in [i.strip().split(' | ')
+                              for i in evaluation.strip().split(';') if len(i) > 1]:
+        k, m = k_m.strip().split(' ')
+        k_success = (msg_k.strip().upper() == 'SUCCESS')
+        m_success = (msg_m.strip().upper() == 'SUCCESS')
+        result.append({
+            'K=' + k: k_success,
+            'M=' + m: m_success,
+        })
+    return result
+
+
+def parse_block(df):
+
+    # Parse each evaluation as a list of dicts
+    df.loc[:, 'evaluation'] = df['raw_evaluation'].apply(parse_evaluation)
+
+    # Parse the instance as a KCMC_Instance object
+    df.loc[:, 'obj_instance'] = df['instance'].apply(
+        lambda instance: KCMC_Instance(instance,
+                                       accept_loose_pois=True,
+                                       accept_loose_sensors=True,
+                                       accept_loose_sinks=True)
+    )
+
+    # Extract basic attributes of the instance
+    df.loc[:, 'key'] = df['obj_instance'].apply(lambda i: i.key_str)
+    df.loc[:, 'random_seed'] = df['obj_instance'].apply(lambda i: i.random_seed)
+    df.loc[:, 'pois'] = df['obj_instance'].apply(lambda i: i.num_pois)
+    df.loc[:, 'sensors'] = df['obj_instance'].apply(lambda i: i.num_sensors)
+    df.loc[:, 'sinks'] = df['obj_instance'].apply(lambda i: i.num_sinks)
+    df.loc[:, 'area_side'] = df['obj_instance'].apply(lambda i: i.area_side)
+    df.loc[:, 'coverage_r'] = df['obj_instance'].apply(lambda i: i.sensor_coverage_radius)
+    df.loc[:, 'communication_r'] = df['obj_instance'].apply(lambda i: i.sensor_communication_radius)
+
+    # Extract attributes of the instance that cannot be calculated from other attributes
+
+    # Reformat the dataframe
+    df = df.explode('evaluation').reset_index(drop=True).copy()
+    df = df.merge(pd.DataFrame(df['evaluation'].tolist(), index=df.index),
+                  left_index=True, right_index=True)
+    df = df.fillna(False).drop_duplicates(
+        subset=(['key', 'random_seed'] + [col for col in df.columns if (col.startswith('K') or col.startswith('M'))])
+    ).reset_index(drop=True)
+
+    return df
+
+
+def parse_key(instance_key):
+    key = instance_key.replace('INSTANCE', 'KCMC').replace(':', '_')
+    if os.path.exists(sys.argv[1] + '/' + key + '.pq'):
+        tam = len(pd.read_parquet(sys.argv[1] + '/' + key + '.pq'))
+        if (tam % 10000) == 0:
+            return key, tam
+
+    # If we have to reprocess, start our own redis connection and extract the data
+    df = []
+    redis = StrictRedis(sys.argv[3], decode_responses=True)
+    evaluation_key = instance_key.replace('INSTANCE', 'EVALUATION')
+    for random_seed, instance in redis.hscan_iter(instance_key):
+        df.append({
+            'instance': instance,
+            'raw_evaluation': redis.hget(evaluation_key, random_seed)
+        })
+    redis.close()
+
+    # With the connection closed, parse and save the data
+    df = parse_block(pd.DataFrame(df))
+    df.drop(columns=['obj_instance', 'evaluation']).copy().to_parquet(sys.argv[1] + f'/{key}.pq')
+    return key, len(df)
+
+
+if __name__ == "__main__":
+
+    import sys, os, multiprocessing
+    import pandas as pd
+    from redis import StrictRedis
+
+    redis = StrictRedis(sys.argv[3], decode_responses=True)
+    list_keys = list(redis.scan_iter('INSTANCE:*'))
+    redis.close()
+
+    # Parse the REDIS data as a DataFrame
+    pool = multiprocessing.Pool(int(sys.argv[2]))
+    for num, pair in enumerate(pool.imap_unordered(parse_key, list_keys)):
+        key, qtd = pair
+        print(round(num / len(list_keys), 3), '\t', qtd, '\t', key)
+    pool.close()

@@ -15,3 +15,11 @@ builds/*
 
 # PDFs
 *.pdf
+
+# Parquet Data
+*.pq
+*.parquet
+
+# REDIS Data
+*.rdb
+*.aof

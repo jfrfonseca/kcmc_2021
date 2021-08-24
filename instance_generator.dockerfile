@@ -2,7 +2,7 @@
 FROM python:bullseye
 
 # Install python dependencies
-RUN pip install --no-cache-dir asyncio aioredis
+RUN pip install --no-cache-dir asyncio aioredis numpy pandas pyarrow
 
 # Add in the executables
 COPY builds/instance_generator /app/instance_generator

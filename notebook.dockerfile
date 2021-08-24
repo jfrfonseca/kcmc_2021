@@ -1,6 +1,5 @@
-# Using the public image on Docker HUB of the Gurobi Optimizer with Jupyter Notebook & Modeling Examples
-# Alternative image for production: gurobi/python:9.1.2
-FROM gurobi/modeling-examples:latest
+# Adding GUROBI paraphernalia
+FROM gurobi/modeling-examples:9.1.2
 
 # Install other analisys dependencies and cleanup
 RUN apt update  -y \

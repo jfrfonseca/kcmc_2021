@@ -51,9 +51,9 @@ services:
       - redis
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: "python -u /src/kcmc_instance.py /data/instances.parquet 6 host.docker.internal"
+    command: "python -u /src/kcmc_instance.py /data/instances.parquet 15 host.docker.internal"
     build:
-      dockerfile: instance_generator.dockerfile
+      dockerfile: notebook.dockerfile
       context: .
     volumes:
       - ./data/instances.parquet:/data/instances.parquet:rw

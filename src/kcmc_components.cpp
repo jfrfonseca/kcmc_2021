@@ -28,8 +28,8 @@ bool isin(std::unordered_set<std::string> ref, const std::string &item){return r
  */
 double distance(COMPONENT source, COMPONENT target){
     /** Euclidean distance */
-    return sqrt(pow(abs(abs(source.x) - abs(target.x)), 2.0)
-              + pow(abs(abs(source.y) - abs(target.y)), 2.0));
+    return sqrt(pow((source.x - target.x), 2.0)
+              + pow((source.y - target.x), 2.0));
 }
 double distance(COMPONENT source, int x, int y){
     COMPONENT target = {x, y};
@@ -44,7 +44,7 @@ double distance(COMPONENT source, int x, int y){
 
 KCMC_Instance::KCMC_Instance(int num_pois, int num_sensors, int num_sinks,
                              int area_side, int coverage_radius, int communication_radius,
-                             long long random_seed, bool print) {
+                             long long random_seed) {
 
     // Copy the variables
     this->num_pois = num_pois;
@@ -116,43 +116,8 @@ KCMC_Instance::KCMC_Instance(int num_pois, int num_sensors, int num_sinks,
             }
         }
     }
-
-    // Print as GRAPHVIZ, if required
-    if (print) {
-        printf("digraph G {\n");
-
-        printf("  subgraph pois {\n    node [style=filled];\n");
-        for (std::pair<int, std::unordered_set<int>> source_poi : this->poi_sensor) {
-            for (const auto& target_sensor : source_poi.second) {
-                printf("    P%d -> S%d;\n", source_poi.first, target_sensor);
-            }
-        }
-        printf("    label = \"POI Connections\";\n    color = green;\n  }\n");
-
-        for (std::pair<int, std::unordered_set<int>> source_sensor : this->sensor_sensor) {
-            for (const auto& target_sensor : source_sensor.second) {
-                printf("  S%d -> S%d;\n", source_sensor.first, target_sensor);
-            }
-        }
-
-        printf("  subgraph sinks {\n    node [style=filled];\n");
-        for (std::pair<int, std::unordered_set<int>> source_sensor : this->sensor_sink) {
-            for (const auto& target_sink : source_sensor.second) {
-                printf("    S%d -> K%d;\n", source_sensor.first, target_sink);
-            }
-        }
-        printf("    label = \"SINK Connections\";\n    color = black;\n  }\n");
-        printf("}\n");
-    }
 }
 
-KCMC_Instance::KCMC_Instance(
-        int num_pois, int num_sensors, int num_sinks,
-        int area_side, int coverage_radius, int communication_radius,
-        long long random_seed
-): KCMC_Instance(num_pois, num_sensors, num_sinks,
-                 area_side, coverage_radius, communication_radius,
-                 random_seed, false) {}
 
 KCMC_Instance::KCMC_Instance(const std::string& serialized_kcmc_instance) {
 

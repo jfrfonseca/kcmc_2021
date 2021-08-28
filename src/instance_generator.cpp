@@ -46,7 +46,9 @@ int main(int argc, char* const argv[]) {
     /* Prepare Buffers */
     int k_range, m_range, k, m, i, num_pois, num_sensors, num_sinks, area_side, coverage_radius, communication_radius;
     long long random_seed;
-    std::string msg_k="SUCCESS", msg_m="SUCCESS";
+    std::string msg_k[10], msg_m[10];
+    msg_k[0] = "SUCCESS";
+    msg_m[0] = "SUCCESS";
 
     /* Parse CMD SETTINGS */
     k_range = atoi(argv[1]);
@@ -69,19 +71,26 @@ int main(int argc, char* const argv[]) {
         try {
             auto *instance = new KCMC_Instance(num_pois, num_sensors, num_sinks,
                                                area_side, coverage_radius, communication_radius,
-                                               random_seed, (argc==9));
+                                               random_seed);
             printf("%s\n", instance->serialize().c_str());
 
-            /* TEST EACH VALID COMBINATION OF K AND M */
+            /* TEST EACH VALUE OF K */
+            for (k=1; k<=k_range; k++) {      // There is no point in testing for K=0
+                if (msg_k[k-1] != "SUCCESS") {msg_k[k] = msg_k[k-1];}
+                else {msg_k[k] = instance->k_coverage(k);}
+            }
+
+            /* TEST EACH VALUE OF M */
+            for (m=1; m<=m_range; m++) {  // There is no point in testing for M=0
+                if (msg_m[m-1] != "SUCCESS") {msg_m[m] = msg_m[m-1];}
+                else {msg_m[m] = instance->m_connectivity(m);}
+            }
+
+            /* TEST EACH VALUE OF K AND M COMBINATION OF K AND M */
             for (k=1; k<=k_range; k++) {      // There is no point in testing for K=0
                 for (m=1; m<=m_range; m++) {  // There is no point in testing for M=0
                     if (k < m) {continue;}    // Cases where k < m are invalid
-
-                    // If we got here, we should make a test for the values of K and M if appliable
-                    if (msg_k == "SUCCESS") {msg_k = instance->k_coverage(k);}      // Avoid testing for values larger
-                    if (msg_m == "SUCCESS") {msg_m = instance->m_connectivity(m);}  // than a failure in the same test
-
-                    std::cout << k << ' ' << m << " | " << msg_k << " | " << msg_m << ";\t";
+                    std::cout << k << ' ' << m << " | " << msg_k[k] << " | " << msg_m[m] << ";\t";
             }}
             std::cout << '\n';
 

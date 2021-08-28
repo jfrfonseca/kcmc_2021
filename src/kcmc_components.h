@@ -30,9 +30,6 @@ class KCMC_Instance {
 
         KCMC_Instance(int num_pois, int num_sensors, int num_sinks,
                       int area_side, int coverage_radius, int communication_radius,
-                      long long random_seed, bool print);
-        KCMC_Instance(int num_pois, int num_sensors, int num_sinks,
-                      int area_side, int coverage_radius, int communication_radius,
                       long long random_seed);
         explicit KCMC_Instance(const std::string& serialized_kcmc_instance);
     

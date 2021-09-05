@@ -7,6 +7,8 @@ import asyncio
 import aioredis
 
 LOCK_TIME = 10000
+BLOCK_SIZE = 20
+HEAT_UP_TIME = 30
 
 
 async def generate_instances(
@@ -22,30 +24,43 @@ async def generate_instances(
     existing_instances = int(await redis.hlen(instance_key))
     if existing_instances >= target_instances: return existing_instances, 0
 
-    # If we got here, ~someone~ should create those missing instances. Try to acquire the lock
-    async with redis.pipeline(transaction=True) as pipe:
-        has_lock, _ = await (pipe
-            .setnx('LOCK:'+instance_key, str(time.time_ns()))
-            .expire('LOCK:'+instance_key, LOCK_TIME)
-            .execute()
-        )
+    # If we got here, ~someone~ should create those missing instances in one of the blocks. Try to acquire the lock
+    block = 0
+    lock = None
+    for block in range(0, target_instances, BLOCK_SIZE):
+        async with redis.pipeline(transaction=True) as pipe:
+            lock = f'LOCK:BLOCK{block}:{instance_key}'
+            has_lock, _ = await (pipe
+                .setnx(lock, str(time.time_ns()))
+                .expire(lock, LOCK_TIME)
+                .execute()
+            )
+        if has_lock: break      # Lets do this block!
+        else: time.sleep(0.05)  # Prevent REDIS from overheating
 
-    if not has_lock:
-        time.sleep(0.05)  # Prevent REDIS from overheating
-        return existing_instances, -1
-    print('GOT LOCK ::', instance_key)
+    # If no lock at all, this configuration is DONE
+    if not has_lock: return existing_instances, -1
+    print('GOT LOCK ::', instance_key, '::>', block)
+
+    # List the instances to generate
+    to_generate = [
+        rseed for rseed in random_seeds[max(block, existing_instances):target_instances]
+        if (not (await redis.hexists(instance_key, rseed)))
+    ]
+    if len(to_generate) == 0: return existing_instances, -2
 
     # Run the command in a subprocess
     proc = await asyncio.create_subprocess_exec(
         '/app/instance_generator',
         *list(map(str, [k_range, m_range, num_pois, num_sensors, num_sinks, area_side, covg_radius, comm_radius]
-                       + random_seeds[existing_instances:target_instances])),
+                       + to_generate)),
         stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
+        stderr=asyncio.subprocess.PIPE,
+        limit = 1024 * 512,  # 512 KiB
     )
 
     # Read the expected number of lines, each being piped to REDIS
-    for num, expected_seed in enumerate(random_seeds[existing_instances:target_instances]):
+    for num, expected_seed in enumerate(to_generate):
 
         # Instance, serialized
         out_instance = await proc.stdout.readline()
@@ -63,21 +78,19 @@ async def generate_instances(
                .execute()
             )
 
-    # Wait for the subprocess exit.
+    # Wait for the subprocess exit
     await proc.wait()
 
-    # Clear the lock
-    await redis.delete('LOCK:'+instance_key)
-
-    # Return the amount of wrok performed
-    result = (int(await redis.hlen(instance_key)), target_instances-existing_instances)
+    # Return the amount of work performed and delete the lock
+    result = (int(await redis.hlen(instance_key)), len(to_generate))
+    await redis.delete(lock)
     await redis.close()
     return result
 
 
 if __name__ == '__main__':
     try:
-        time.sleep(30)
+        time.sleep(HEAT_UP_TIME)
 
         # parse the arguments
         configs_file = sys.argv[1]
@@ -99,20 +112,24 @@ if __name__ == '__main__':
                 configs_to_run.append(tuple(list(map(int, map(lambda i: i.strip(), line)))))
 
         # For each configuration, generate instances
-        for num_pois, num_sensors, num_sinks, area_side, covg_radius, comm_radius in configs_to_run:
-            try:
-                previous_work, current_work = asyncio.run(
-                    generate_instances(
-                        random_seeds, k_range, m_range,
-                        num_pois, num_sensors, num_sinks, area_side, covg_radius, comm_radius,
-                        target_instances
+        run_again = True
+        while run_again:
+            run_again = False
+            for num_pois, num_sensors, num_sinks, area_side, covg_radius, comm_radius in configs_to_run:
+                try:
+                    previous_work, current_work = asyncio.run(
+                        generate_instances(
+                            random_seeds, k_range, m_range,
+                            num_pois, num_sensors, num_sinks, area_side, covg_radius, comm_radius,
+                            target_instances
+                        )
                     )
-                )
-                print(f'>>>> KCMC:{num_pois}:{num_sensors}:{num_sinks}:{area_side}:{covg_radius}:{comm_radius}', previous_work, current_work)
-            except Exception as exp:
-                if {'connection', 'reset', 'peer'}.issubset(str(exp).lower().strip()):
-                    time.sleep(10)
-                else: raise exp
+                    print(f'>>>> KCMC:{num_pois}:{num_sensors}:{num_sinks}:{area_side}:{covg_radius}:{comm_radius}', previous_work, current_work)
+                    run_again = run_again or (current_work != 0)
+                except Exception as exp:
+                    if {'connection', 'reset', 'peer'}.issubset(str(exp).lower().strip()):
+                        time.sleep(10)
+                    else: raise exp
 
     except Exception as exp:
         traceback.print_exc()

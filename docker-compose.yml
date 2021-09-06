@@ -33,7 +33,7 @@ services:
       - redis
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: "python -u /src/instance_generator_driver.py /data/missing.csv 3000 5 3"
+    command: "python -u /src/instance_generator_driver.py /data/missing.csv 100 5 3"
     build:
       dockerfile: instance_generator.dockerfile
       context: .

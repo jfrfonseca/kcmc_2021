@@ -2,15 +2,16 @@
 KCMC_Instance Object
 """
 
-from queue import SimpleQueue as Queue
-from typing import List
+
+from typing import List, Tuple
 
 
 
 class KCMC_Instance(object):
 
-    def __init__(self, instance_string:str, accept_loose_pois=False, accept_loose_sensors=False,accept_loose_sinks=False):
-        self.furthest_cache = {'poi': {}, 'sensor': {}, 'sink': {}}
+    def __repr__(self): return f'<{self.key_str} {self.random_seed} [{len(self.virtual_sinks)}]>'
+
+    def __init__(self, instance_string:str, accept_loose_pois=False, accept_loose_sensors=False, accept_loose_sinks=False):
         self.string = instance_string.upper().strip()
 
         assert self.string.startswith('KCMC;'), 'ALL INSTANCES MUST START WITH THE TAG <KCMC;>'
@@ -36,6 +37,7 @@ class KCMC_Instance(object):
         self.sensor_sensor = {}
         self.sink_sensor = {}
         self.sensor_sink = {}
+        self.virtual_sinks = []
 
         tag = None
         for i, token in enumerate(instance[4:-1]):
@@ -76,25 +78,27 @@ class KCMC_Instance(object):
     def key_str(self) -> str:
         return ':'.join(['KCMC'] + list(map(str, self.key)))
 
-    # ADVANCED PROPERTIES ##############################################################################################
+    @property
+    def is_single_sink(self) -> bool: return self.num_sinks == 1
 
     @property
-    def poi_degree(self) -> List[int]: return [len(v) for v in self.poi_sensor.values()]
+    def pois(self) -> List[str]: return list(map(str, sorted(self.poi_sensor.keys())))
 
     @property
-    def sensor_degree(self) -> List[int]: return [len(v) for v in self.sensor_sensor.values()]
+    def sensors(self) -> List[str]: return list(map(str, sorted(self.sensor_sensor.keys())))
 
     @property
-    def sink_degree(self) -> List[int]: return [len(v) for v in self.sink_sensor.values()]
+    def sinks(self) -> List[str]: return list(map(str, sorted(self.sink_sensor.keys())))
 
     @property
-    def furthest_distance_poi(self) -> List[int]: return [self.furthest_sensor(v, 'poi') for v in self.poi_sensor.values()]
-
-    @property
-    def furthest_distance_sensor(self) -> List[int]: return [self.furthest_sensor(v, 'sensor') for v in self.sensor_sensor.values()]
-
-    @property
-    def furthest_distance_sink(self) -> List[int]: return [self.furthest_sensor(v, 'sink') for v in self.sensor_sensor.values()]
+    def edges(self) -> List[Tuple[str, str]]:
+        result = []
+        for r in ([(f'p{p}', f's{s}') for p, sens in sorted(self.poi_sensor.items()) for s in sens]
+                + [(f's{s}', f's{s}') for s, sens in sorted(self.sensor_sensor.items()) for s in sens]
+                + [(f's{s}', f'k{k}') for s, sinks in sorted(self.sensor_sink.items()) for k in sinks]):
+            if ((r[1], r[0]) not in result) and (r[0] != r[1]):
+                result.append(r)
+        return result
 
     # SERVICES #########################################################################################################
 
@@ -104,53 +108,41 @@ class KCMC_Instance(object):
             _dict[key] = set()
         _dict[key].add(value)
 
-    def furthest_sensor(self, start_item:int, component_type:str):
+    def to_single_sink(self, MAX_M=10) -> object:
+        if self.is_single_sink: return self
 
-        # Select datasource
-        if component_type == 'poi':
-            source = self.poi_sensor
-        elif component_type == 'sensor':
-            source = self.sensor_sensor
-        elif component_type == 'sink':  # In this case, we have the distance from a sensor to any sink
-            if start_item in self.sensor_sink: return 1
-            source = self.sensor_sensor
-        else: raise TypeError('Unknown component type '+component_type)
+        # Start a new instance without any content
+        result = KCMC_Instance(
+            instance_string=';'.join([
+                'KCMC',
+                f'{self.num_pois} {self.num_sensors} 1',
+                f'{self.area_side} {self.sensor_coverage_radius} {self.sensor_communication_radius}',
+                f'{self.random_seed}',
+                'END'
+            ]),
+            accept_loose_pois=True, accept_loose_sensors=True, accept_loose_sinks=True
+        )
 
-        # Check cache
-        cache = self.furthest_cache[component_type].get(start_item, None)
-        if cache is not None: return cache
+        # Set the present instance's serialized string and some of the buffers
+        result.string = self.string
+        result.poi_sensor = self.poi_sensor.copy()
+        result.sensor_poi = self.sensor_poi.copy()
+        result.sensor_sensor = self.sensor_sensor.copy()
 
-        # Prepare buffers
-        visited = set()
-        layer = source[start_item]
-        next_layer = set()
-        num_layers = 0
-        sink_found = False
-        look_for_sink = (component_type == 'sink')
+        # Set the virtual sinks
+        for sink, targets in self.sink_sensor.items():
+            for i in range(MAX_M):
+                virtual_sink = max(result.sensor_sensor.keys()) + 1
+                result.virtual_sinks.append(virtual_sink)
+                for sensor in targets:
+                    result._add_to(result.sensor_sensor, virtual_sink, sensor)
+                    result._add_to(result.sensor_sensor, sensor, virtual_sink)
+                    result._add_to(result.sensor_sink, virtual_sink, 0)
+                    result._add_to(result.sink_sensor, 0, virtual_sink)
+        # result.num_sensors = result.num_sensors + len(result.virtual_sinks)
 
-        # BFS loop
-        while len(layer) > 0:
-            num_layers += 1
-            for sensor in layer:
-                visited.add(sensor)
-                for neighbor in self.sensor_sensor[sensor]:
-
-                    # If we're looking for a sink and found it, to not add new sensors to the next layer
-                    if sink_found or (look_for_sink and (neighbor in self.sensor_sink)):
-                        sink_found = True
-                        continue
-
-                    # If not, add unvisited neighbors out of the current layer to the next layer
-                    if neighbor in visited.union(layer): continue
-                    next_layer.add(neighbor)
-
-            # If in the last layer already, cache all the results
-            if len(next_layer) == 0:
-                self.furthest_cache[component_type][start_item] = num_layers
-                for sensor in layer:
-                    self.furthest_cache[component_type][sensor] = num_layers
-            layer = next_layer
-        return num_layers
+        # Return the new instance
+        return result
 
 
 # ######################################################################################################################

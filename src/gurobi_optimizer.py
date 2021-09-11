@@ -41,10 +41,10 @@ def run_gurobi_optimizer(serialized_instance:str,
                          log:callable=print, LOGFILE:str=None) -> dict:
 
     # Prepare the results object
-    results = {'kcmc_k': kcmc_k, 'kcmc_m': kcmc_m,
-               'raw': {}, 'single_sink': {},
-               'optimization': {'X': [], 'installation': {}},
-               'limits': {'time': time_limit, 'processes': processes}}
+    results = {'kcmc_k': kcmc_k, 'kcmc_m': kcmc_m, 'time_limit': time_limit, 'processes': processes,
+               'raw': {'installation': {}},
+               'single_sink': {'installation': {}},
+               'optimization': {'X': []}}
 
     # De-Serialize the instance as a KCMC_Instance object.
     # It MIGHT be multisink and thus incompatible with the ILP formulation
@@ -182,7 +182,6 @@ def run_gurobi_optimizer(serialized_instance:str,
     results['optimization']['start'] = time.time_ns()
     model.optimize()
     results['optimization']['finish'] = time.time_ns()
-    results['optimization']['time'] = results['optimization']['finish'] - results['optimization']['start']
     log('OPTIMIZATION DONE ' + ('*'*42))
 
     # Warn the model that it has ended
@@ -191,9 +190,15 @@ def run_gurobi_optimizer(serialized_instance:str,
     # Store some metadata
     STATUS = GUROBI_STATUS_TRANSLATE.get(model.Status, f'ERROR ({model.Status})')
     results['optimization'].update({
+        'time': results['optimization']['finish'] - results['optimization']['start'],
+        'gurobi_runtime': model.Runtime,
         'status_code': model.Status,
         'status': STATUS.split(' ')[0],
-        'solutions_count': model.SolCount
+        'gurobi_model_fingerprint': str(model.Fingerprint),
+        'binary_variables': model.NumBinVars,
+        'solutions_count': model.SolCount,
+        'node_count': model.NodeCount,
+        'simplex_iterations_count': model.IterCount
     })
     log(f'OPTIMIZATION STATUS: {STATUS}')
     log(f'QUANTITY OF SOLUTIONS FOUND: {model.SolCount}')

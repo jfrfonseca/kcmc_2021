@@ -41,7 +41,8 @@ def run_gurobi_optimizer(serialized_instance:str,
                          log:callable=print, LOGFILE:str=None) -> dict:
 
     # Prepare the results object
-    results = {'kcmc': {'k': kcmc_k, 'm': kcmc_m, 'raw': {}, 'single_sink': {}},
+    results = {'kcmc_k': kcmc_k, 'kcmc_m': kcmc_m,
+               'raw': {}, 'single_sink': {},
                'optimization': {'X': [], 'installation': {}},
                'limits': {'time': time_limit, 'processes': processes}}
 
@@ -51,7 +52,7 @@ def run_gurobi_optimizer(serialized_instance:str,
     log(f'Parsed raw instance of key {maybe_multisink_instance.key_str}')
 
     # Add metadata to the result object
-    results['kcmc']['raw'].update({
+    results['raw'].update({
         'key': maybe_multisink_instance.key_str,
         'instance': serialized_instance,
         'pois': maybe_multisink_instance.num_pois,
@@ -70,7 +71,7 @@ def run_gurobi_optimizer(serialized_instance:str,
     log('Ensured single-sink instance')
 
     # Add metadata to the result object
-    results['kcmc']['single_sink'].update({
+    results['single_sink'].update({
         'key': instance.key_str,
         'instance': instance.string,
         'pois': instance.num_pois,

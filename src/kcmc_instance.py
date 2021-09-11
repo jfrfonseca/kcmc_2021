@@ -140,6 +140,12 @@ class KCMC_Instance(object):
     def sink_edges(self) -> List[Tuple[str, str]]: return [(f'i{i}', f's{s}') for i, sinks in self.sensor_sink.items() for s in sinks]
 
     @property
+    def coverage_density(self) -> float: return (self.sensor_coverage_radius*self.num_sensors)/(self.area_side*self.area_side*self.num_pois)
+
+    @property
+    def communication_density(self) -> float: return (self.sensor_communication_radius*self.num_sensors*self.num_sinks)/(self.area_side*self.area_side)
+
+    @property
     def virtual_sinks(self) -> Set[str]: return set([f'i{s}' for vsinks in self.virtual_sinks_map.values() for s in vsinks])
 
     @property

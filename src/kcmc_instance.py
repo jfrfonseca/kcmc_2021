@@ -3,6 +3,7 @@ KCMC_Instance Object
 """
 
 
+from filelock import FileLock
 from typing import List, Set, Tuple, Dict
 try:
     import igraph
@@ -370,8 +371,16 @@ def parse_key(instance_key):
     redis.close()
 
     # With the connection closed, parse and save the data
-    df = parse_block(pd.DataFrame(df))
-    df.drop(columns=['obj_instance', 'evaluation']).copy().to_parquet(sys.argv[1] + f'/{key}.pq')
+    df = pd.DataFrame(df)[['instance', 'raw_evaluation']]
+    if '--no-parsing' not in sys.argv:
+        df = parse_block(df)
+    target = sys.argv[1]
+    if target.endswith('.parquet'):
+        df.drop(columns=['obj_instance', 'evaluation']).copy().to_parquet(target + f'/{key}.pq')
+    else:
+        with FileLock(target, timeout=30, delay=0.2):
+            df.to_csv(target, mode='a', header=False)
+
     return key, len(df)
 
 

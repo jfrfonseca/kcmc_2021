@@ -11,6 +11,20 @@ BLOCK_SIZE = 20
 HEAT_UP_TIME = 30
 
 
+async def clear_locks():
+    redis = await aioredis.from_url("redis://host.docker.internal")  # Get a connection with REDIS
+    count = 0
+    cur = b'0'  # set initial cursor to 0
+    while cur:
+        cur, keys = await redis.scan(cur, match='LOCK:*')
+        print("Iteration results:", keys)
+        if len(keys) > 0:
+            await redis.delete(*keys)
+            count += len(keys)
+    await redis.close()
+    return count
+
+
 async def generate_instances(
         random_seeds:list, k_range: int, m_range: int,
         num_pois:int, num_sensors:int, num_sinks:int, area_side:int, covg_radius:int, comm_radius:int,
@@ -98,6 +112,10 @@ if __name__ == '__main__':
         k_range = int(sys.argv[3])
         m_range = int(sys.argv[4])
 
+        if '--clear-locks' in sys.argv:
+            cleared_locks = asyncio.run(clear_locks())
+            print('CLEARED', cleared_locks, 'OUTSTANDING LOCKS')
+
         # Extract the complete random seeds
         with open('/data/random_seeds.txt', 'r') as fin:
             random_seeds = fin.read()
@@ -112,6 +130,7 @@ if __name__ == '__main__':
                 configs_to_run.append(tuple(list(map(int, map(lambda i: i.strip(), line)))))
 
         # For each configuration, generate instances
+        if '--clear-locks' in sys.argv: time.sleep(1.0)  # Give time to all processes clear the locks
         run_again = True
         while run_again:
             run_again = False

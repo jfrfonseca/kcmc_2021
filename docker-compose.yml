@@ -33,7 +33,7 @@ services:
       - redis
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: "python -u /src/instance_generator_driver.py /data/missing.csv 200 5 3"
+    command: "python -u /src/instance_generator_driver.py /data/missing.csv 200 5 3 --clear-locks"
     build:
       dockerfile: instance_generator.dockerfile
       context: .
@@ -42,7 +42,7 @@ services:
       - ./src:/src:ro
     deploy:
       mode: replicated
-      replicas: 7
+      replicas: 15
 
   parser:
     profiles:
@@ -51,7 +51,7 @@ services:
       - redis
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: "python -u /src/kcmc_instance.py /data/instances.csv 7 host.docker.internal --no-parsing"
+    command: "python -u /src/kcmc_instance.py /data/instances.csv 15 host.docker.internal --no-parsing"
     build:
       dockerfile: notebook.dockerfile
       context: .

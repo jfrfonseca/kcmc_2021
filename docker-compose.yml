@@ -53,7 +53,7 @@ services:
       - "host.docker.internal:host-gateway"
     command: "python -u /src/kcmc_instance.py /data/instances.csv 15 host.docker.internal --no-parsing"
     build:
-      dockerfile: notebook.dockerfile
+      dockerfile: instance_generator.dockerfile
       context: .
     volumes:
       - ./data/instances.csv:/data/instances.csv:rw

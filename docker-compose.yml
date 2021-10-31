@@ -80,7 +80,7 @@ services:
     profiles:
       - gurobi
     image: gurobi/python:9.1.2
-    command: xargs -a "/data/sample.K5M3.instances.txt" -d "\n" -n1 -P8 "/home/gurobi/src/gurobi_driver.sh"
+    command: "python -u /home/gurobi/src/gurobi_optimizer.py /data/instances.csv 5 3 -l 1 -t 1"
     environment:
       GRB_CLIENT_LOG: 3
       PYTHONPATH: "/home/gurobi/src"
@@ -89,3 +89,6 @@ services:
       - ./data:/data:ro
       - ./src:/home/gurobi/src:ro
       - ./analysis/results:/home/gurobi/results:rw
+    deploy:
+      mode: replicated
+      replicas: 15

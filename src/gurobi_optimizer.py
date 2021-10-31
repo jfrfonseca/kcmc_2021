@@ -11,11 +11,6 @@ import logging
 import argparse
 import traceback
 from datetime import datetime
-from functools import partial
-from multiprocessing import Pool
-
-# PANDAS
-import pandas as pd
 
 # GUROBI
 import gurobipy as gp
@@ -23,6 +18,7 @@ from gurobipy import GRB
 
 # This package
 from kcmc_instance import KCMC_Instance
+from filelock import FileLock, FileLockException
 
 
 # TRANSLATE GUROBI STATUS CODES
@@ -261,43 +257,66 @@ if __name__ == '__main__':
 
     # Set the arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("input_csv_file", required=True, help="CSV file full of KCMC Instances")
-    parser.add_argument("kcmc_k", required=True, help="KCMC K value to evaluate")
-    parser.add_argument("kcmc_m", required=True, help="KCMC M value to evaluate")
-    parser.add_argument('-l', '--limit', help='Time limit', default=60)
-    parser.add_argument('-p', '--processes', help='Number of gurobi processes to concurrently process instances', default=4)
-    parser.add_argument('-t', '--threads', help='Number of threads to use in each gurobi process', default=1)
+    parser.add_argument("input_csv_file", help="CSV file full of KCMC Instances")
+    parser.add_argument("kcmc_k", type=int, help="KCMC K value to evaluate")
+    parser.add_argument("kcmc_m", type=int, help="KCMC M value to evaluate")
+    parser.add_argument('-l', '--limit', type=int, help='Time limit', default=60)
+    parser.add_argument('-t', '--threads', type=int, help='Number of threads to use in the current gurobi process', default=1)
     args, unknown_args = parser.parse_known_args()
 
     # Parse the arguments
-    input_csv_file = str(args.input_csv_file.strip().upper())
+    input_csv_file = str(args.input_csv_file.strip())
     time_limit = float(str(args.limit))
-    processes = int(float(str(args.processes)))
     threads = int(float(str(args.threads)))
     kcmc_k = int(float(str(args.kcmc_k)))
     kcmc_m = int(float(str(args.kcmc_m)))
     assert kcmc_k >= kcmc_m, 'KCMC K MUST BE NO SMALLER THAN KCMC M!'
     assert os.path.exists(input_csv_file), f'INPUT CSV FILE {input_csv_file} DOES NOT EXISTS!'
 
-    # Read the input data, whose first column musty always be the serialized instance
-    instances_list = []
-    with open(input_csv_file, 'r') as fin:
-        for row in fin:
-            row = row.strip()
-            if row.startswith('KCMC'):  # Only properly-started rows
-                instances_list.append(row.split(',')[0])
-    assert len(instances_list) > 0, 'NO INSTANCES WERE PARSED!'
+    # For each line in the input file (assuming there is no header)
+    with open(input_csv_file, 'r') as input_file:
+        for line_no, serialized_instance in enumerate(input_file):
 
-    # Prepare the execution environment
-    optimizer_function = partial(process_instance, kcmc_k, kcmc_m, time_limit, threads)
-    if processes == 1:
-        process_pool = None
-        iterator = map(optimizer_function, instances_list)
-    else:
-        process_pool = Pool(processes=processes)
-        iterator = process_pool.imap_unordered(optimizer_function, instances_list)
+            # Get the serialized instance
+            serialized_instance = serialized_instance.strip().split(',')[0].strip().upper()
+            if not serialized_instance.startswith('KCMC'): continue  # Only valid lines. Skip the rest
 
-    # Run the execution
-    for key, status in iterator:
-        print(key, status)
-    if process_pool is not None: process_pool.close()
+            # Parse the KEY of the instance
+            KEY = '_'.join(serialized_instance.split(';', 4)[:4])
+
+            # Check if the RESULTS file already exists. If so, skip.
+            RESULTS_KEY = f'/home/gurobi/results/{KEY}'
+            if os.path.exists(RESULTS_KEY+'.json'): continue
+
+            # If we do manage to acquire the LOCK to the results key:
+            try:
+                with FileLock(RESULTS_KEY+'.log', timeout=None, delay=None):
+
+                    # Start the logger
+                    logging.basicConfig(filename=RESULTS_KEY+'.log', level=logging.DEBUG)
+                    def log(logstring): logging.info(KEY+':::'+logstring)
+
+
+                    # Run the main execution, logging possible errors
+                    try:
+                        results = run_gurobi_optimizer(serialized_instance, kcmc_k, kcmc_m, time_limit,
+                                                       threads, log, LOGFILE=RESULTS_KEY+'.log')
+
+                        # Save the results on disk and exit with success
+                        with open(RESULTS_KEY+'.json', 'w') as fout:
+                            json.dump(results, fout, indent=2)
+
+                        # Printout the result status
+                        result = '{}\t{} {}'.format(line_no, KEY, results['optimization']['status'])
+                    except Exception as exp:
+                        with open(RESULTS_KEY+'.err', 'a') as fout:
+                            fout.write(f'KEY {KEY} AT {datetime.now()}\nERROR - {exp}\n{traceback.format_exc()}\n\n')
+
+                        # Printout the error
+                        result = '{}\t{} {}'.format(line_no, KEY, 'ERROR: '+str(exp))
+
+                    with open('/home/gurobi/results/STATE.log', 'a') as fout:
+                        fout.write(f'{datetime.now()} {result}\n')
+
+            # Locking exception
+            except FileLockException: continue  # If we did not got the lock, skip this key.

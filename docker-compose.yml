@@ -91,4 +91,4 @@ services:
       - ./analysis/results:/home/gurobi/results:rw
     deploy:
       mode: replicated
-      replicas: 15
+      replicas: 2

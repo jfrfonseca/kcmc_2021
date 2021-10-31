@@ -379,7 +379,7 @@ def parse_key(instance_key):
         df.drop(columns=['obj_instance', 'evaluation']).copy().to_parquet(target + f'/{key}.pq')
     else:
         with FileLock(target, timeout=30, delay=0.2):
-            df.to_csv(target, mode='a', header=False)
+            df.to_csv(target, mode='a', header=False, index=None)
 
     return key, len(df)
 

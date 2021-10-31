@@ -56,7 +56,7 @@ services:
       dockerfile: instance_generator.dockerfile
       context: .
     volumes:
-      - ./data/instances.csv:/data/instances.csv:rw
+      - ./data:/data:rw
       - ./src:/src:ro
 
   notebook:

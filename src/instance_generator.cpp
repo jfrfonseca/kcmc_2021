@@ -8,7 +8,7 @@
 #include <iostream>  // cin, cout, endl
 
 // Dependencies from this package
-#include "kcmc_components.h"
+#include "kcmc_instance.h"
 
 
 /* #####################################################################################################################
@@ -46,6 +46,7 @@ int main(int argc, char* const argv[]) {
     /* Prepare Buffers */
     int k_range, m_range, k, m, i, num_pois, num_sensors, num_sinks, area_side, coverage_radius, communication_radius;
     long long random_seed;
+    std::unordered_set<int> emptyset;
     std::string msg_k[10], msg_m[10];
     msg_k[0] = "SUCCESS";
     msg_m[0] = "SUCCESS";
@@ -60,11 +61,6 @@ int main(int argc, char* const argv[]) {
     coverage_radius = atoi(argv[7]);
     communication_radius = atoi(argv[8]);
 
-    /* Verify basic metadata */
-    if ((0 >= num_pois) or (num_pois > MAX_POIS)){throw std::invalid_argument("NUMBER OF POIS OUT OF BOUNDS!");}
-    if ((0 >= num_sensors) or (num_sensors > MAX_SENSORS)){throw std::invalid_argument("NUMBER OF SENSORS OUT OF BOUNDS!");}
-    if ((0 >= num_sinks) or (num_sinks > MAX_SINKS)){throw std::invalid_argument("NUMBER OF SINKS OUT OF BOUNDS!");}
-
     for (i=9; i<argc; i++) {
         random_seed = atoll(argv[i]);
 
@@ -77,13 +73,13 @@ int main(int argc, char* const argv[]) {
             /* TEST EACH VALUE OF K */
             for (k=1; k<=k_range; k++) {      // There is no point in testing for K=0
                 if (msg_k[k-1] != "SUCCESS") {msg_k[k] = msg_k[k-1];}
-                else {msg_k[k] = instance->k_coverage(k);}
+                else {msg_k[k] = instance->k_coverage(k, emptyset);}
             }
 
             /* TEST EACH VALUE OF M */
             for (m=1; m<=m_range; m++) {  // There is no point in testing for M=0
                 if (msg_m[m-1] != "SUCCESS") {msg_m[m] = msg_m[m-1];}
-                else {msg_m[m] = instance->m_connectivity(m);}
+                else {msg_m[m] = instance->m_connectivity(m, emptyset);}
             }
 
             /* TEST EACH VALUE OF K AND M COMBINATION OF K AND M */

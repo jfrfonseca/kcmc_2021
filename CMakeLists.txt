@@ -5,8 +5,9 @@ set(CMAKE_CXX_STANDARD 14)
 
 # Utilities and KCMC Instance Object ------------------------------------------
 ADD_LIBRARY(KCMC_Module
-    src/kcmc_components.cpp
-    src/kcmc_components.h
+            src/kcmc_instance.cpp
+            src/m_connectivity.cpp
+            src/kcmc_instance.h
 )
 target_link_libraries(KCMC_Module)
 

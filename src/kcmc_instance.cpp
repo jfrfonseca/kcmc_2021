@@ -12,22 +12,18 @@
 #include "kcmc_instance.h"  // KCMC Instance class headers
 
 
-/** General Utilities
- */
-
-
 /* ISIN (IS IN)
  * A method to determine if a given value is in a given set of values, overloaded for maximum re-usability
  */
-bool isin(std::unordered_map<int, std::unordered_set<int>> &ref, const int item){return ref.find(item) != ref.end();}
-bool isin(std::unordered_set<int> &ref, const int item){return ref.find(item) != ref.end();}
-bool isin(std::unordered_set<std::string> ref, const std::string &item){return ref.find(item) != ref.end();}  // CANNOT BE A POINTER TO THE SET!
+bool KCMC_Instance::isin(const std::unordered_map<int, std::unordered_set<int>> &ref, const int item){return ref.find(item) != ref.end();}
+bool KCMC_Instance::isin(const std::unordered_set<int> &ref, const int item){return ref.find(item) != ref.end();}
+bool KCMC_Instance::isin(const std::unordered_set<std::string> ref, const std::string &item){return ref.find(item) != ref.end();}  // CANNOT BE A POINTER TO THE SET!
 
 
 /* SET DIFF
  * Returns the set that is the difference between the given sets
  */
-std::unordered_set<int> set_diff(const std::unordered_set<int> &left, const std::unordered_set<int> &right) {
+std::unordered_set<int> KCMC_Instance::set_diff(const std::unordered_set<int> &left, const std::unordered_set<int> &right) {
     auto rightend = right.end();
     std::unordered_set<int> remainder;
     for (const int &item : left) {
@@ -36,29 +32,6 @@ std::unordered_set<int> set_diff(const std::unordered_set<int> &left, const std:
         }
     }
     return remainder;
-}
-
-
-/* DISTANCE
- * Distance between two components, overloaded for maximum re-usability
- */
-double distance(Placement source, Placement target){
-    /** Euclidean distance */
-    return sqrt(pow((source.x - target.x), 2.0)
-              + pow((source.y - target.x), 2.0));
-}
-
-
-/* PUSH
- * Adds and element to an HashMap of Unordered Sets
- */
-void push(std::unordered_map<int, std::unordered_set<int>> &buffer, const int source, const int target){
-    if (isin(buffer, source)){buffer[source].insert(target);}
-    else {
-        std::unordered_set<int> new_set;
-        new_set.insert(target);
-        buffer[source] = new_set;
-    }
 }
 
 
@@ -86,6 +59,28 @@ std::string KCMC_Instance::k_coverage(const int k, std::unordered_set<int> &inac
     return "SUCCESS";
 }
 
+
+/* DISTANCE
+ * Distance between two components, overloaded for maximum re-usability
+ */
+double distance(Placement source, Placement target){
+    /** Euclidean distance */
+    return sqrt(pow((source.x - target.x), 2.0)
+              + pow((source.y - target.x), 2.0));
+}
+
+
+/* PUSH
+ * Adds and element to an HashMap of Unordered Sets
+ */
+void KCMC_Instance::push(std::unordered_map<int, std::unordered_set<int>> &buffer, const int source, const int target){
+    if (isin(buffer, source)){buffer[source].insert(target);}
+    else {
+        std::unordered_set<int> new_set;
+        new_set.insert(target);
+        buffer[source] = new_set;
+    }
+}
 
 
 /** RANDOM-INSTANCE GENERATOR CONSTRUCTOR

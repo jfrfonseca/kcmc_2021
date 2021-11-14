@@ -10,12 +10,14 @@
 #include <unordered_map>  // unordered_map HashMap object
 #include <cmath>          // sqrt, pow
 
+
 #ifndef KCMC_INSTANCE_H
 #define KCMC_INSTANCE_H
 
 #define tPOI 0
 #define tSENSOR 1
 #define tSINK 2
+
 
 /** NODE
  * Basic building block of the KCMC Instance. Contains its type (poi, sensor, sink), index (in array) and dinic level
@@ -33,6 +35,15 @@ struct Placement {
     Node *node;
     int x, y;
 };
+
+
+/* SET MERGE
+ * Returns the set that is the sum of the given sets
+ */
+template<class T>
+T set_merge (T a, T b) {
+  T t(a); t.insert(b.begin(),b.end()); return t;
+}
 
 
 /** KCMC Instance
@@ -93,9 +104,20 @@ class KCMC_Instance {
          */
         std::string k_coverage(int k, std::unordered_set<int> &inactive_sensors);
         std::string m_connectivity(int m, std::unordered_set<int> &inactive_sensors);
-    
+
+        /* STATIC SERVICES
+         *
+         */
+        static bool isin(const std::unordered_map<int, std::unordered_set<int>> &ref, int item);
+        static bool isin(const std::unordered_set<int> &ref, int item);
+        static bool isin(std::unordered_set<std::string> ref, const std::string &item);
+        static std::unordered_set<int> set_diff(const std::unordered_set<int> &left, const std::unordered_set<int> &right);
+        static void push(std::unordered_map<int, std::unordered_set<int>> &buffer, int source, int target);
+
     private:
         int parse_edge(int stage, const std::string& token);
+        std::unordered_set<int> bfs(std::unordered_set<int> &seed_sensors, std::unordered_set<int> &inactive_sensors);
+        int level_graph(int level_graph[], std::unordered_set<int> &inactive_sensors);
 };
 
 #endif

@@ -28,13 +28,18 @@
 struct Node {
     int nodetype;
     int index;
-    int level;
 };
 
 struct Placement {
     Node *node;
     int x, y;
 };
+
+struct LevelNode {
+    int index;
+    int level;
+};
+bool compare_level_node( LevelNode a, LevelNode b);  // DECREASING order
 
 
 /* SET MERGE
@@ -109,6 +114,7 @@ class KCMC_Instance {
          *
          */
         static bool isin(const std::unordered_map<int, std::unordered_set<int>> &ref, int item);
+        static bool isin(const std::unordered_map<int, int> &ref, int item);
         static bool isin(const std::unordered_set<int> &ref, int item);
         static bool isin(std::unordered_set<std::string> ref, const std::string &item);
         static std::unordered_set<int> set_diff(const std::unordered_set<int> &left, const std::unordered_set<int> &right);
@@ -116,8 +122,9 @@ class KCMC_Instance {
 
     private:
         int parse_edge(int stage, const std::string& token);
-        std::unordered_set<int> bfs(std::unordered_set<int> &seed_sensors, std::unordered_set<int> &inactive_sensors);
         int level_graph(int level_graph[], std::unordered_set<int> &inactive_sensors);
+        int find_path(std::vector<LevelNode> &queue, std::unordered_set<int> &inactive_sensors,
+                      int level_graph[], std::unordered_map<int, int> predecessors);
 };
 
 #endif

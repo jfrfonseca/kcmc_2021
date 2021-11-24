@@ -12,10 +12,14 @@
 #include "kcmc_instance.h"  // KCMC Instance class headers
 
 
+bool compare_level_node( LevelNode a, LevelNode b) { return (a.level >= b.level); }  // DECREASING order
+
+
 /* ISIN (IS IN)
  * A method to determine if a given value is in a given set of values, overloaded for maximum re-usability
  */
 bool KCMC_Instance::isin(const std::unordered_map<int, std::unordered_set<int>> &ref, const int item){return ref.find(item) != ref.end();}
+bool KCMC_Instance::isin(const std::unordered_map<int, int> &ref, const int item){return ref.find(item) != ref.end();}
 bool KCMC_Instance::isin(const std::unordered_set<int> &ref, const int item){return ref.find(item) != ref.end();}
 bool KCMC_Instance::isin(const std::unordered_set<std::string> ref, const std::string &item){return ref.find(item) != ref.end();}  // CANNOT BE A POINTER TO THE SET!
 
@@ -96,7 +100,7 @@ KCMC_Instance::KCMC_Instance(int num_pois, int num_sensors, int num_sinks,
      */
 
     // Iteration buffers
-    int i, j, source, target;
+    int i, j;
 
     // Copy the variables
     this->num_pois = num_pois;
@@ -116,26 +120,26 @@ KCMC_Instance::KCMC_Instance(int num_pois, int num_sensors, int num_sinks,
 
     // Set the POIs buffers
     for (i=0; i<num_pois; i++) {
-        Node a_poi = {tPOI, i, -1};
+        Node a_poi = {tPOI, i};
         this->poi.push_back(a_poi);
         pl_pois[i] = {&a_poi, (int)(point(gen)), (int)(point(gen))};
     }
 
     // Set the SENSORs buffers
     for (i=0; i<num_sensors; i++) {
-        Node a_sensor = {tSENSOR, i, -1};
+        Node a_sensor = {tSENSOR, i};
         this->sensor.push_back(a_sensor);
         pl_sensors[i] = {&a_sensor, (int)(point(gen)), (int)(point(gen))};
     }
 
     // Set the SINKs buffers (if there is a single sink, it will be at the center of the area)
     if (num_sinks == 1) {
-        Node a_sink = {tSINK, 0, 0};
+        Node a_sink = {tSINK, 0};
         this->sink.push_back(a_sink);
         pl_sinks[0] = {&a_sink, (int)(area_side / 2.0), (int)(area_side / 2.0)};
     } else {
         for (i=0; i<num_sinks; i++) {
-            Node a_sink = {tSINK, i, 0};
+            Node a_sink = {tSINK, i};
             this->sink.push_back(a_sink);
             pl_sinks[i] = {&a_sink, (int)(point(gen)), (int)(point(gen))};
         }

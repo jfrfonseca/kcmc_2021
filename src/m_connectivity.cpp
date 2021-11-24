@@ -156,7 +156,7 @@ std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &
             } else {
                 paths_found += 1;  // Count the newfound path
                 // Unravel the path, marking each sensor as used
-                while (predecessors[path_end] != -1) {
+                while (path_end != -1) {
                     used_sensors.insert(path_end);
                     path_end = predecessors[path_end];
                 }

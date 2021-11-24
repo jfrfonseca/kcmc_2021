@@ -64,12 +64,21 @@ int KCMC_Instance::level_graph(int level_graph[], std::unordered_set<int> &inact
  */
 
 
-int KCMC_Instance::find_path(std::vector<LevelNode> &queue,
-                             std::unordered_set<int> &inactive_sensors,
+int KCMC_Instance::find_path(const int poi_number, std::unordered_set<int> &used_sensors,
                              int level_graph[], std::unordered_map<int, int> predecessors) {
 
     // Local buffers
     int i_sensor;
+    std::vector<LevelNode> queue;
+
+    // Prepare a queue with each active unused sensor that covers the POI
+    // Also add each sensor to the predecessors map, having "-1" as the predecessor
+    for (const int &a_sensor : this->poi_sensor[poi_number]) {
+        if (not isin(used_sensors, a_sensor)) {
+            queue.push_back({a_sensor, level_graph[a_sensor]});
+            predecessors[a_sensor] = -1;
+        }
+    }
 
     // Sort the starting queue by level
     std::sort(queue.begin(), queue.end(), compare_level_node);
@@ -86,7 +95,7 @@ int KCMC_Instance::find_path(std::vector<LevelNode> &queue,
         // Add the unvisited active neighbors of the sensor to the queue and re-sort it
         // Each sensor is also added to the predecessors map
         for (const int &neighbor : this->sensor_sensor[i_sensor]) {
-            if ((not isin(inactive_sensors, neighbor)) and (not isin(predecessors, neighbor))){
+            if ((not isin(used_sensors, neighbor)) and (not isin(predecessors, neighbor))){
                 queue.push_back({neighbor, level_graph[neighbor]});
                 predecessors[neighbor] = i_sensor;
             }
@@ -113,43 +122,29 @@ std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &
     int level_graph[this->num_sensors];
     this->level_graph(level_graph, inactive_sensors);
 
-    // Prepare the buffers for a BFS-Dinic queue, the output buffer
-    // and the set of "used" sensors, that includes the inactive ones
-    std::vector<LevelNode> queue;
+    // Prepare the output buffer and the set of "used" sensors, that includes the inactive ones
     std::ostringstream out;
     std::unordered_set<int> used_sensors;
     used_sensors = set_merge(inactive_sensors, used_sensors);
 
     // Create a loop control flag and pointer buffers
-    int paths_found, path_end;
+    int paths_found, path_end, a_poi;
     std::unordered_map<int, int> predecessors;
 
     // Run for each POI, returning at the first failure
-    for (const auto &a_poi : this->poi_sensor) {
+    for (a_poi=0; a_poi < this->num_pois; a_poi++) {
         paths_found = 0;  // Clear the number of paths found for the POI
 
         // While there are still paths to be found
         while (paths_found < m) {
-
-            // Clear the buffers
-            queue.clear();
-            predecessors.clear();
-
-            // Prepare a queue with each active unused sensor that covers the POI
-            // Also add each sensor to the predecessors map, having "-1" as the predecessor
-            for (const int &a_sensor : a_poi.second) {
-                if (not isin(used_sensors, a_sensor)) {
-                    queue.push_back({a_sensor, level_graph[a_sensor]});
-                    predecessors[a_sensor] = -1;
-                }
-            }
+            predecessors.clear();  // Clear the predecessors buffer
 
             // Find a path
-            path_end = this->find_path(queue, used_sensors, level_graph, predecessors);
+            path_end = this->find_path(a_poi, used_sensors, level_graph, predecessors);
 
             // If the path ends in an invalid sensor, return the failure.
             if (path_end == -1) {
-                out << "POI " << a_poi.first << " CONNECTIVITY " << queue.size();
+                out << "POI " << a_poi << " CONNECTIVITY " << paths_found;
                 return out.str();
 
             // If success, count the path and mark all the sensors with predecessors as "used"

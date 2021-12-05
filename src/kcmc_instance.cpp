@@ -12,9 +12,6 @@
 #include "kcmc_instance.h"  // KCMC Instance class headers
 
 
-bool compare_level_node( LevelNode a, LevelNode b) { return (a.level >= b.level); }  // DECREASING order
-
-
 /* ISIN (IS IN)
  * A method to determine if a given value is in a given set of values, overloaded for maximum re-usability
  */
@@ -238,6 +235,9 @@ KCMC_Instance::KCMC_Instance(const std::string& serialized_kcmc_instance) {
         }
         previous = pos+1;
     }
+    if (this->num_pois == 0) {throw std::runtime_error("INSTANCE HAS NO POIS!");}
+    if (this->num_sensors == 0) {throw std::runtime_error("INSTANCE HAS NO SENSORS!");}
+    if (this->num_sinks == 0) {throw std::runtime_error("INSTANCE HAS NO SINKS!");}
 }
 
 

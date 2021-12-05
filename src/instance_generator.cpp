@@ -18,7 +18,7 @@
 
 void help() {
     std::cout << "Please, use the correct input for the KCMC instance generator:" << std::endl << std::endl;
-    std::cout << "./graph_instance_generator <p> <s> <k> <area_s> <cov_v> <com_r> <seed>+" << std::endl;
+    std::cout << "./instance_generator <p> <s> <k> <area_s> <cov_v> <com_r> <seed>+" << std::endl;
     std::cout << "  where:" << std::endl << std::endl;
     std::cout << "p > 0 is the number of POIs to be randomly generated" << std::endl;
     std::cout << "s > 0 is the number of Sensors to be generated" << std::endl;

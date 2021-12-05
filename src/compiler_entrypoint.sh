@@ -6,3 +6,4 @@ cmake --build .
 
 # COPY THE OUTPUT EXECUTABLES TO THE BUILDS DIRECTORY
 cp instance_generator /app/builds
+cp instance_evaluator /app/builds

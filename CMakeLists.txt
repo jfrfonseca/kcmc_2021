@@ -16,6 +16,11 @@ target_link_libraries(KCMC_Module)
 ADD_EXECUTABLE(instance_generator src/instance_generator.cpp)
 target_link_libraries(instance_generator KCMC_Module)
 
+
+# Instance evaluator ----------------------------------------------------------
+ADD_EXECUTABLE(instance_evaluator src/instance_evaluator.cpp)
+target_link_libraries(instance_evaluator KCMC_Module)
+
 ## Optimizer -------------------------------------------------------------------
 #ADD_EXECUTABLE(kcmc_2021 src/main.cpp)
 #target_link_libraries(kcmc_2021 KCMC_Module)

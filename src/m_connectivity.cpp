@@ -2,7 +2,7 @@
 
 // STDLib dependencies
 #include <sstream>    // ostringstream
-#include <algorithm>  // sort
+#include <queue>      // priority_queue
 
 // Dependencies from this package
 #include "kcmc_instance.h"  // KCMC Instance class headers
@@ -65,42 +65,39 @@ int KCMC_Instance::level_graph(int level_graph[], std::unordered_set<int> &inact
 
 
 int KCMC_Instance::find_path(const int poi_number, std::unordered_set<int> &used_sensors,
-                             int level_graph[], std::unordered_map<int, int> predecessors) {
+                             int level_graph[], int predecessors[]) {
 
     // Local buffers
     int i_sensor;
-    std::vector<LevelNode> queue;
+    LevelNode ln_buffer[this->num_sensors];
+    std::priority_queue<LevelNode, std::vector<LevelNode>, CompareLevelNode> queue;
 
     // Prepare a queue with each active unused sensor that covers the POI
     // Also add each sensor to the predecessors map, having "-1" as the predecessor
     for (const int &a_sensor : this->poi_sensor[poi_number]) {
         if (not isin(used_sensors, a_sensor)) {
-            queue.push_back({a_sensor, level_graph[a_sensor]});
+            queue.push({a_sensor, level_graph[a_sensor]});
             predecessors[a_sensor] = -1;
         }
     }
 
-    // Sort the starting queue by level
-    std::sort(queue.begin(), queue.end(), compare_level_node);
-
     // Iterate until the queue is empty
     while (not queue.empty()) {
-        // Get the last sensor in the queue (lowest level) and visit it
-        i_sensor = queue.end()->index;
-        queue.pop_back();
+        // Get the top sensor in the queue (lowest level) and visit it
+        i_sensor = queue.top().index;
+        queue.pop();
 
         // If the sensor is neighbor of a sink, return the path
         if (isin(this->sensor_sink, i_sensor)) {return i_sensor;}
 
-        // Add the unvisited active neighbors of the sensor to the queue and re-sort it
+        // Add the unvisited active neighbors of the sensor to the queue
         // Each sensor is also added to the predecessors map
         for (const int &neighbor : this->sensor_sensor[i_sensor]) {
-            if ((not isin(used_sensors, neighbor)) and (not isin(predecessors, neighbor))){
-                queue.push_back({neighbor, level_graph[neighbor]});
+            if ((not isin(used_sensors, neighbor)) and (predecessors[neighbor] == -2)){
+                queue.push({neighbor, level_graph[neighbor]});
                 predecessors[neighbor] = i_sensor;
             }
         }
-        std::sort(queue.begin(), queue.end(), compare_level_node);
     }
 
     // If we got here, there is no possible path :(
@@ -128,8 +125,7 @@ std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &
     used_sensors = set_merge(inactive_sensors, used_sensors);
 
     // Create a loop control flag and pointer buffers
-    int paths_found, path_end, a_poi;
-    std::unordered_map<int, int> predecessors;
+    int paths_found, path_end, a_poi, predecessors[this->num_sensors];
 
     // Run for each POI, returning at the first failure
     for (a_poi=0; a_poi < this->num_pois; a_poi++) {
@@ -137,7 +133,7 @@ std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &
 
         // While there are still paths to be found
         while (paths_found < m) {
-            predecessors.clear();  // Clear the predecessors buffer
+            std::fill(predecessors, predecessors+this->num_sensors, -2);
 
             // Find a path
             path_end = this->find_path(a_poi, used_sensors, level_graph, predecessors);
@@ -154,6 +150,7 @@ std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &
                 while (path_end != -1) {
                     used_sensors.insert(path_end);
                     path_end = predecessors[path_end];
+                    if (path_end == -2) {throw std::runtime_error("FORBIDDEN ADDRESS!");}
                 }
             }
         }

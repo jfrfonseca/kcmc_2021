@@ -39,7 +39,13 @@ struct LevelNode {
     int index;
     int level;
 };
-bool compare_level_node( LevelNode a, LevelNode b);  // DECREASING order
+struct CompareLevelNode {
+    bool operator()(LevelNode const& a, LevelNode const& b) {
+        // return "true" if "p1" is ordered
+        // before "p2", for example:
+        return (a.level >= b.level);  // DECREASING order
+    }
+};
 
 
 /* SET MERGE
@@ -124,7 +130,7 @@ class KCMC_Instance {
         int parse_edge(int stage, const std::string& token);
         int level_graph(int level_graph[], std::unordered_set<int> &inactive_sensors);
         int find_path(int poi_number, std::unordered_set<int> &used_sensors,
-                      int level_graph[], std::unordered_map<int, int> predecessors);
+                      int level_graph[], int predecessors[]);
 };
 
 #endif

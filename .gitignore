@@ -16,6 +16,9 @@ builds/*
 # PDFs
 *.pdf
 
+# CSV Data
+*.csv
+
 # Parquet Data
 *.pq
 *.parquet

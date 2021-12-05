@@ -26,7 +26,7 @@ async def clear_locks():
 
 
 async def generate_instances(
-        random_seeds:list, k_range: int, m_range: int,
+        random_seeds:list,
         num_pois:int, num_sensors:int, num_sinks:int, area_side:int, covg_radius:int, comm_radius:int,
         target_instances: int
 ) -> (int, int):
@@ -34,7 +34,6 @@ async def generate_instances(
 
     # Check how many instances we already have
     instance_key = f'INSTANCE:{num_pois}:{num_sensors}:{num_sinks}:{area_side}:{covg_radius}:{comm_radius}'
-    evaluation_key = f'EVALUATION:{num_pois}:{num_sensors}:{num_sinks}:{area_side}:{covg_radius}:{comm_radius}'
     existing_instances = int(await redis.hlen(instance_key))
     if existing_instances >= target_instances: return existing_instances, 0
 
@@ -66,7 +65,7 @@ async def generate_instances(
     # Run the command in a subprocess
     proc = await asyncio.create_subprocess_exec(
         '/app/instance_generator',
-        *list(map(str, [k_range, m_range, num_pois, num_sensors, num_sinks, area_side, covg_radius, comm_radius]
+        *list(map(str, [num_pois, num_sensors, num_sinks, area_side, covg_radius, comm_radius]
                        + to_generate)),
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
@@ -88,7 +87,6 @@ async def generate_instances(
         async with redis.pipeline(transaction=True) as pipe:
             await (pipe
                .hset(instance_key,   str(expected_seed), out_instance)
-               .hset(evaluation_key, str(expected_seed), out_evaluation)
                .execute()
             )
 
@@ -109,8 +107,6 @@ if __name__ == '__main__':
         # parse the arguments
         configs_file = sys.argv[1]
         target_instances = int(sys.argv[2])
-        k_range = int(sys.argv[3])
-        m_range = int(sys.argv[4])
 
         if '--clear-locks' in sys.argv:
             cleared_locks = asyncio.run(clear_locks())
@@ -138,7 +134,7 @@ if __name__ == '__main__':
                 try:
                     previous_work, current_work = asyncio.run(
                         generate_instances(
-                            random_seeds, k_range, m_range,
+                            random_seeds,
                             num_pois, num_sensors, num_sinks, area_side, covg_radius, comm_radius,
                             target_instances
                         )

@@ -41,9 +41,9 @@ struct LevelNode {
 };
 struct CompareLevelNode {
     bool operator()(LevelNode const& a, LevelNode const& b) {
-        // return "true" if "p1" is ordered
-        // before "p2", for example:
-        return (a.level >= b.level);  // DECREASING order
+        // return "true" if "a" is ordered before "b"
+        if (a.level == b.level){return (a.index <= b.index);}  // INCREASING order, if at the same level
+        else {return (a.level > b.level);}  // DECREASING order
     }
 };
 

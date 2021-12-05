@@ -69,7 +69,6 @@ int KCMC_Instance::find_path(const int poi_number, std::unordered_set<int> &used
 
     // Local buffers
     int i_sensor;
-    LevelNode ln_buffer[this->num_sensors];
     std::priority_queue<LevelNode, std::vector<LevelNode>, CompareLevelNode> queue;
 
     // Prepare a queue with each active unused sensor that covers the POI

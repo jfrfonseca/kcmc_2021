@@ -118,10 +118,9 @@ std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &
     int level_graph[this->num_sensors];
     this->level_graph(level_graph, inactive_sensors);
 
-    // Prepare the output buffer and the set of "used" sensors, that includes the inactive ones
+    // Prepare the output buffer and the set of "used" sensors
     std::ostringstream out;
     std::unordered_set<int> used_sensors;
-    used_sensors = set_merge(inactive_sensors, used_sensors);
 
     // Create a loop control flag and pointer buffers
     int paths_found, path_end, a_poi, predecessors[this->num_sensors];
@@ -129,6 +128,7 @@ std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &
     // Run for each POI, returning at the first failure
     for (a_poi=0; a_poi < this->num_pois; a_poi++) {
         paths_found = 0;  // Clear the number of paths found for the POI
+        used_sensors = inactive_sensors;  // Reset the set of used sensors for each POI
 
         // While there are still paths to be found
         while (paths_found < m) {

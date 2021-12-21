@@ -5,41 +5,23 @@ Gurobi Optimizer Driver Script
 
 # STDLib
 import json
-import time
 import os.path
 import logging
 import argparse
 import traceback
 from datetime import datetime
 
-# GUROBI
-import gurobipy as gp
-from gurobipy import GRB
-
 # This package
 from kcmc_instance import KCMC_Instance
+from gurobi_models import get_instalation, gurobi_multi_flow
 from filelock import FileLock, FileLockException
-
-
-# TRANSLATE GUROBI STATUS CODES
-GUROBI_STATUS_TRANSLATE = {
-    GRB.OPTIMAL: f'OPTIMAL ({GRB.OPTIMAL})',
-    GRB.INFEASIBLE: f'INFEASIBLE ({GRB.INFEASIBLE})',
-    GRB.INF_OR_UNBD: f'INFEASIBLE ({GRB.INF_OR_UNBD})',
-    GRB.UNBOUNDED: f'INFEASIBLE ({GRB.UNBOUNDED})',
-
-    GRB.ITERATION_LIMIT: f'LIMIT ({GRB.ITERATION_LIMIT})',
-    GRB.NODE_LIMIT: f'LIMIT ({GRB.NODE_LIMIT})',
-    GRB.TIME_LIMIT: f'LIMIT ({GRB.TIME_LIMIT})',
-    GRB.SOLUTION_LIMIT: f'LIMIT ({GRB.SOLUTION_LIMIT})',
-    GRB.USER_OBJ_LIMIT: f'LIMIT ({GRB.USER_OBJ_LIMIT})'
-}
 
 
 def run_gurobi_optimizer(serialized_instance:str,
                          kcmc_k:int, kcmc_m:int,
                          time_limit:float, threads:int,
-                         log:callable=print, LOGFILE:str=None) -> dict:
+                         log:callable=print, LOGFILE:str=None,
+                         model_factory=gurobi_multi_flow) -> dict:
 
     # Prepare the results object
     results = {'kcmc_k': kcmc_k, 'kcmc_m': kcmc_m, 'time_limit': time_limit, 'threads': threads,
@@ -86,132 +68,29 @@ def run_gurobi_optimizer(serialized_instance:str,
         'virtual_sinks': {k: list(v) for k, v in instance.virtual_sinks_map.items()}
     })
 
-    # Extract the component sets
-    iC = instance.inverse_coverage_graph
-    L = [str(m) for m in range(kcmc_m)]
-    P = instance.pois
-    I = instance.sensors
-    S = instance.sinks
-    s = list(S)[0]  # HARD-CODED ASSUMPTION OF SINGLE-SINK!
-    A_c = instance.poi_edges
-    A_s = instance.sink_edges
-    A_g = instance.sensor_edges
-    A = A_c + A_g + A_s
-    log('Extracted constants')
-
     # MODEL SETUP ======================================================================================================
 
-    # Set the GUROBI MODEL
-    model = gp.Model('KCMC')
-
-    # Set the Time Limit and the Thread Count
-    model.setParam(GRB.Param.TimeLimit, time_limit)
-    model.setParam(GRB.Param.Threads, threads)
-
-    # Set the LOG configuration
-    if LOGFILE is not None: model.setParam(GRB.Param.LogFile, LOGFILE)
-    model.setParam(GRB.Param.OutputFlag, 1)
-    model.setParam(GRB.Param.LogToConsole, 0)
-
-    # Set the variables
-    X = model.addVars(I, L, vtype=GRB.BINARY, name="x")
-    Y = model.addVars(A, P, L, vtype=GRB.BINARY, name='y')
-
-    # Set the objective function
-    model.setObjective(X.sum('*', '*'), GRB.MINIMIZE)
-
-    # Set the CONSTRAINTS -------------------------------------------------------------------------
-
-    # Disjunction -----------------------------------------
-    disjunction = model.addConstrs(
-        (X.sum(i, '*') <= 1
-         for i in I),
-        name="ilp_multi_disjunction"
-    )
-
-    # Flow ------------------------------------------------
-    ilp_multi_flow_p = model.addConstrs(
-        ((  gp.quicksum(Y.select(p, '*', p, l))
-          - gp.quicksum(Y.select('*', p, p, l))) == 1
-         for p in P
-         for l in L),
-        name="ilp_multi_flow_p"
-    )
-
-    ilp_multi_flow_s = model.addConstrs(
-        ((  gp.quicksum(Y.select(s, '*', p, l))
-          - gp.quicksum(Y.select('*', s, p, l))) == -1
-         for p in P
-         for l in L),
-        name="ilp_multi_flow_s"
-    )
-
-    ilp_multi_flow_i = model.addConstrs(
-        ((  gp.quicksum(Y.select(i, '*', p, l))
-          - gp.quicksum(Y.select('*', i, p, l))) == 0
-         for i in I
-         for p in P
-         for l in L),
-        name="ilp_multi_flow_i"
-    )
-
-    # Projection ------------------------------------------
-    ilp_multi_projection = model.addConstrs(
-        (Y.sum(i, '*', p, l) <= X.sum(i, l)
-         for i in I
-         for p in P
-         for l in L),
-        name="ilp_multi_projection"
-    )
-
-    # K-Coverage ------------------------------------------
-    ilp_multi_k_coverage = model.addConstrs(
-        (gp.quicksum(X.select(iC[p], '*')) >= kcmc_k
-         for p in P),
-        name="ilp_multi_k_coverage"
-    )
-
-    # Save the model --------------------------------------
-    # model.write(f'/home/gurobi/results/{KEY}.lp')
-    # model.write(f'/home/gurobi/results/{KEY}.mps')
+    # Build the model and its variables
+    model, X, Y = model_factory(kcmc_k, kcmc_m, instance, time_limit, threads, LOGFILE)
     log('GUROBI Model set up')
 
     # MODEL EXECUTION ==================================================================================================
 
     # Run the execution
     log('STARTING OPTIMIZATION ' + ('*'*38))
-    results['optimization']['start'] = time.time_ns()
-    model.optimize()
-    results['optimization']['finish'] = time.time_ns()
+    results = model.optimize()
     log('OPTIMIZATION DONE ' + ('*'*42))
 
-    # Warn the model that it has ended
-    model.setParam(GRB.Param.OutputFlag, 0)
-
     # Store some metadata
-    STATUS = GUROBI_STATUS_TRANSLATE.get(model.Status, f'ERROR ({model.Status})')
-    results['optimization'].update({
-        'time': results['optimization']['finish'] - results['optimization']['start'],
-        'gurobi_runtime': model.Runtime,
-        'status_code': model.Status,
-        'status': STATUS.split(' ')[0],
-        'gurobi_model_fingerprint': str(model.Fingerprint),
-        'binary_variables': model.NumBinVars,
-        'solutions_count': model.SolCount,
-        'node_count': model.NodeCount,
-        'simplex_iterations_count': model.IterCount
-    })
-    log(f'OPTIMIZATION STATUS: {STATUS}')
-    log(f'QUANTITY OF SOLUTIONS FOUND: {model.SolCount}')
+    results['optimization'].update(results)
+    log(f'OPTIMIZATION STATUS: {results["optimization"]["status"]}')
+    log(f'QUANTITY OF SOLUTIONS FOUND: {results["optimization"]["solutions_count"]}')
 
     # Store the values of X
-    if 'OPTIMAL' in STATUS:
-        for x in X:
-            installation_spot_id, steiner_tree_id = x
-            sensor_installed = bool(X[x].X)
-            results['optimization']['X'].append((installation_spot_id, steiner_tree_id, sensor_installed))
-            if sensor_installed:
-                results['single_sink']['installation'][installation_spot_id] = steiner_tree_id
+    if 'OPTIMAL' in results["optimization"]["status"]:
+        tuplelist, installation = get_installation(X)
+        results['optimization']['X'] = tuplelist
+        results['single_sink']['installation'] = installation
 
     # Parse the used spots
     results['single_sink']['used_spots'] = [s for s, i in results['single_sink']['installation'].items()]

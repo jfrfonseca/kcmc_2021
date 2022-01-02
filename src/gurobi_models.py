@@ -31,7 +31,13 @@ def get_installation(variable_X):
     tuplelist = []
     installation = {}
     for x in variable_X:
-        installation_spot_id, steiner_tree_id = x
+        try:
+            installation_spot_id, steiner_tree_id = x
+        except ValueError as verr:
+            if 'too many values to unpack (expected 2)' in str(verr).lower():
+                steiner_tree_id = '0'
+                installation_spot_id = str(x)
+            else: raise verr
         sensor_installed = bool(variable_X[x].X)
         tuplelist.append((installation_spot_id, steiner_tree_id, sensor_installed))
         if sensor_installed:
@@ -180,6 +186,74 @@ def gurobi_multi_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time_
         (gp.quicksum(X.select(iC[p], '*')) >= kcmc_k
          for p in P),
         name="ilp_multi_k_coverage"
+    )
+
+    # Return the model
+    return model, X, Y
+
+
+def gurobi_single_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time_limit=60, threads=1, LOGFILE=None
+                       ) -> (GurobiModelWrapper, Any, Any):
+
+    # Prepare the model object, using the wrapper
+    model = GurobiModelWrapper('KCMC SINGLE-FLOW', kcmc_k, kcmc_m, kcmc_instance, time_limit, threads, LOGFILE)
+
+    # Extract the component sets
+    iC = kcmc_instance.inverse_coverage_graph
+    P = kcmc_instance.pois
+    I = kcmc_instance.sensors
+    S = kcmc_instance.sinks
+    s = list(S)[0]  # HARD-CODED ASSUMPTION OF SINGLE-SINK!
+    A_c = kcmc_instance.poi_edges
+    A_s = kcmc_instance.sink_edges
+    A_g = kcmc_instance.sensor_edges
+    A = A_c + A_g + A_s
+
+    # Set the variables
+    X = model.add_vars(I, vtype=GRB.BINARY, name="x")
+    Y = model.add_vars(A, P, vtype=GRB.BINARY, name='y')
+
+    # Set the objective function
+    model.set_objective(X.sum('*'), GRB.MINIMIZE)
+
+    # Set the CONSTRAINTS -------------------------------------------------------------------------
+
+    # Flow ------------------------------------------------
+    ilp_single_flow_p = model.add_constraints(
+        ((  gp.quicksum(Y.select(p, '*', p))
+          - gp.quicksum(Y.select('*', p, p))) == kcmc_m
+         for p in P),
+        name="ilp_single_flow_p"
+    )
+
+    ilp_single_flow_s = model.add_constraints(
+        ((  gp.quicksum(Y.select(s, '*', p))
+          - gp.quicksum(Y.select('*', s, p))) == -1 * kcmc_m
+         for p in P),
+        name="ilp_single_flow_s"
+    )
+
+    ilp_single_flow_i = model.add_constraints(
+        ((  gp.quicksum(Y.select(i, '*', p))
+          - gp.quicksum(Y.select('*', i, p))) == 0
+         for i in I
+         for p in P),
+        name="ilp_single_flow_i"
+    )
+
+    # Projection ------------------------------------------
+    ilp_single_projection = model.add_constraints(
+        (Y.sum(i, '*', p) <= X.sum(i)
+         for i in I
+         for p in P),
+        name="ilp_single_projection"
+    )
+
+    # K-Coverage ------------------------------------------
+    ilp_single_k_coverage = model.add_constraints(
+        (gp.quicksum(X.select(iC[p], '*')) >= kcmc_k
+         for p in P),
+        name="ilp_single_k_coverage"
     )
 
     # Return the model

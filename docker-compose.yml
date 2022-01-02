@@ -72,7 +72,7 @@ services:
       PYTHONPATH: "/home/gurobi/0_analysis/src"
     volumes:
       - ./data/kcmc_gurobi.lic:/opt/gurobi/gurobi.lic:ro
-      - ./data:/data:ro
+      - ./data:/data:rw
       - ./builds:/builds:ro
       - ./analysis:/home/gurobi/0_analysis:rw
       - ./src:/home/gurobi/0_analysis/src:ro

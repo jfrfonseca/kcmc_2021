@@ -287,7 +287,7 @@ class KCMC_Instance(object):
             g.add_edges(self.linear_edges)
         layout = g.layout("kk")  # Kamada-Kawai Force-Directed algorithm
 
-        # Set the COLOR of every node
+        # Set the COLOR of every NODE
         g.vs["color"] = [self.get_node_color(node, installation) for node in g.vs["name"]]
 
         # Set the NAME of the node as its label. Add the TREE it is installed on, if exists

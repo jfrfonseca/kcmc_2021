@@ -31,13 +31,11 @@ def get_installation(variable_X):
     tuplelist = []
     installation = {}
     for x in variable_X:
-        try:
+        if isinstance(x, str):
+            steiner_tree_id = '0'
+            installation_spot_id = str(x)
+        else:
             installation_spot_id, steiner_tree_id = x
-        except ValueError as verr:
-            if 'too many values to unpack (expected 2)' in str(verr).lower():
-                steiner_tree_id = '0'
-                installation_spot_id = str(x)
-            else: raise verr
         sensor_installed = bool(variable_X[x].X)
         tuplelist.append((installation_spot_id, steiner_tree_id, sensor_installed))
         if sensor_installed:

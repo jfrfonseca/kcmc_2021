@@ -132,7 +132,7 @@ std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &
 
         // While there are still paths to be found
         while (paths_found < m) {
-            std::fill(predecessors, predecessors+this->num_sensors, -2);
+            std::fill(predecessors, predecessors+this->num_sensors, -2);  // Reset the predecessors buffer
 
             // Find a path
             path_end = this->find_path(a_poi, used_sensors, level_graph, predecessors);
@@ -145,7 +145,7 @@ std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &
             // If success, count the path and mark all the sensors with predecessors as "used"
             } else {
                 paths_found += 1;  // Count the newfound path
-                // Unravel the path, marking each sensor as used
+                // Unravel the path, marking each sensor in it as used
                 while (path_end != -1) {
                     used_sensors.insert(path_end);
                     path_end = predecessors[path_end];

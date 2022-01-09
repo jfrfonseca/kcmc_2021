@@ -8,6 +8,8 @@ ADD_LIBRARY(KCMC_Module
             src/kcmc_instance.cpp
             src/m_connectivity.cpp
             src/kcmc_instance.h
+            src/genetic_algorithm_operators.cpp
+            src/genetic_algorithm_operators.h
 )
 target_link_libraries(KCMC_Module)
 
@@ -21,6 +23,7 @@ target_link_libraries(instance_generator KCMC_Module)
 ADD_EXECUTABLE(instance_evaluator src/instance_evaluator.cpp)
 target_link_libraries(instance_evaluator KCMC_Module)
 
+
 ## Optimizer -------------------------------------------------------------------
-#ADD_EXECUTABLE(kcmc_2021 src/main.cpp)
-#target_link_libraries(kcmc_2021 KCMC_Module)
+ADD_EXECUTABLE(optimizer_gupta_exact src/optimizer_gupta_exact.cpp)
+target_link_libraries(optimizer_gupta_exact KCMC_Module)

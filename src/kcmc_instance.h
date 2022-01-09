@@ -47,6 +47,15 @@ struct CompareLevelNode {
     }
 };
 
+bool isin(std::unordered_map<int, std::unordered_set<int>> &ref, int item);
+bool isin(std::unordered_map<int, int> &ref, int item);
+bool isin(std::unordered_set<int> &ref, int item);
+bool isin(std::unordered_set<std::string> &ref, const std::string &item);
+bool isin(std::vector<int> &ref, int item);
+bool isin(std::vector<int> *ref, int item);
+void push(std::unordered_map<int, std::unordered_set<int>> &buffer, int source, int target);
+std::unordered_set<int> set_diff(const std::unordered_set<int> &left, const std::unordered_set<int> &right);
+
 
 /* SET MERGE
  * Returns the set that is the sum of the given sets
@@ -104,10 +113,20 @@ class KCMC_Instance {
 
         /* Instance basic services
          * Get the KEY of the current instance
-         * Serialize the current instance as an string
+         * Serialize the current instance as a string
          */
         std::string key() const;
         std::string serialize();
+
+        /* Instance problem-specific methods
+         * Get the Degree of each Sensor in the instance
+         * Get the Coverage of each POI in the instance
+         * Get the Connectivity of each POI in the instance
+         */
+        int get_degree(int buffer[], std::unordered_set<int> &inactive_sensors);
+        int get_coverage(int buffer[], std::unordered_set<int> &inactive_sensors);
+        int get_connectivity(int buffer[], std::unordered_set<int> &inactive_sensors, int target);
+        int get_connectivity(int buffer[], std::unordered_set<int> &inactive_sensors);
 
         /* Instance payload services
          * Validates k-coverage in the instance considering the given set of inactive sensors
@@ -115,16 +134,6 @@ class KCMC_Instance {
          */
         std::string k_coverage(int k, std::unordered_set<int> &inactive_sensors);
         std::string m_connectivity(int m, std::unordered_set<int> &inactive_sensors);
-
-        /* STATIC SERVICES
-         *
-         */
-        static bool isin(const std::unordered_map<int, std::unordered_set<int>> &ref, int item);
-        static bool isin(const std::unordered_map<int, int> &ref, int item);
-        static bool isin(const std::unordered_set<int> &ref, int item);
-        static bool isin(std::unordered_set<std::string> ref, const std::string &item);
-        static std::unordered_set<int> set_diff(const std::unordered_set<int> &left, const std::unordered_set<int> &right);
-        static void push(std::unordered_map<int, std::unordered_set<int>> &buffer, int source, int target);
 
     private:
         int parse_edge(int stage, const std::string& token);

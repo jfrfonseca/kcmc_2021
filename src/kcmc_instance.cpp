@@ -5,34 +5,50 @@
 
 
 // STDLib dependencies
-#include <sstream> // ostringstream
-#include <random>  // mt19937, uniform_real_distribution
+#include <sstream>    // ostringstream
+#include <random>     // mt19937, uniform_real_distribution
+#include <algorithm>  // std::find
 
 // Dependencies from this package
 #include "kcmc_instance.h"  // KCMC Instance class headers
 
 
-/* ISIN (IS IN)
- * A method to determine if a given value is in a given set of values, overloaded for maximum re-usability
+/* #####################################################################################################################
+ * KCMC-PROBLEM PAYLOAD METHODS
  */
-bool KCMC_Instance::isin(const std::unordered_map<int, std::unordered_set<int>> &ref, const int item){return ref.find(item) != ref.end();}
-bool KCMC_Instance::isin(const std::unordered_map<int, int> &ref, const int item){return ref.find(item) != ref.end();}
-bool KCMC_Instance::isin(const std::unordered_set<int> &ref, const int item){return ref.find(item) != ref.end();}
-bool KCMC_Instance::isin(const std::unordered_set<std::string> ref, const std::string &item){return ref.find(item) != ref.end();}  // CANNOT BE A POINTER TO THE SET!
 
 
-/* SET DIFF
- * Returns the set that is the difference between the given sets
+/** Coverage getter
+ * Gets the coverage at each POI, and the number of POIs with any coverage at all
  */
-std::unordered_set<int> KCMC_Instance::set_diff(const std::unordered_set<int> &left, const std::unordered_set<int> &right) {
-    auto rightend = right.end();
-    std::unordered_set<int> remainder;
-    for (const int &item : left) {
-        if (right.find(item) == rightend) { // If item NOT IN right side
-            remainder.insert(item);
-        }
+int KCMC_Instance::get_coverage(int buffer[], std::unordered_set<int> &inactive_sensors) {
+
+    // For each POI, count its coverage and if it has coverage at all
+    int has_coverage = 0;
+    for (int n_poi=0; n_poi < this->num_pois; n_poi++) {
+        buffer[n_poi] = (int)(set_diff(poi_sensor[n_poi], inactive_sensors).size());
+        has_coverage += buffer[n_poi] > 0 ? 1 : 0;
     }
-    return remainder;
+
+    // Return the number of POIs that have any coverage at all
+    return has_coverage;
+}
+
+
+/** Degree Getter
+ * Gets the degree of each active sensor, and the number of sensors with degre larger than 0
+ */
+int KCMC_Instance::get_degree(int buffer[], std::unordered_set<int> &inactive_sensors) {
+
+    // For each Sensor, count its coverage, returning the number of sensors with any conection at all
+    int has_connection = 0;
+    for (int n_sensor=0; n_sensor < this->num_sensors; n_sensor++) {
+        buffer[n_sensor] = (int)(set_diff(sensor_sensor[n_sensor], inactive_sensors).size());
+        has_connection += 1;
+    }
+
+    // Return the number of Sensors that have any degree at all
+    return has_connection;
 }
 
 
@@ -61,6 +77,37 @@ std::string KCMC_Instance::k_coverage(const int k, std::unordered_set<int> &inac
 }
 
 
+/* #####################################################################################################################
+ * INSTANCE UTILITY STATIC METHODS
+ */
+
+
+/* ISIN (IS IN)
+ * A method to determine if a given value is in a given set of values, overloaded for maximum re-usability
+ */
+bool isin(std::unordered_map<int, std::unordered_set<int>> &ref, const int item){return ref.find(item) != ref.end();}
+bool isin(std::unordered_map<int, int> &ref, const int item){return ref.find(item) != ref.end();}
+bool isin(std::unordered_set<int> &ref, const int item){return ref.find(item) != ref.end();}
+bool isin(std::unordered_set<std::string> &ref, const std::string &item){return ref.find(item) != ref.end();}  // CANNOT BE A POINTER TO THE SET!
+bool isin(std::vector<int> &ref, const int item){return std::find(ref.begin(), ref.end(), item) != ref.end();}
+bool isin(std::vector<int> *ref, const int item){return std::find(ref->begin(), ref->end(), item) != ref->end();}
+
+
+/* SET DIFF
+ * Returns the set that is the difference between the given sets
+ */
+std::unordered_set<int> set_diff(const std::unordered_set<int> &left, const std::unordered_set<int> &right) {
+    auto rightend = right.end();
+    std::unordered_set<int> remainder;
+    for (const int &item : left) {
+        if (right.find(item) == rightend) { // If item NOT IN right side
+            remainder.insert(item);
+        }
+    }
+    return remainder;
+}
+
+
 /* DISTANCE
  * Distance between two components, overloaded for maximum re-usability
  */
@@ -74,7 +121,7 @@ double distance(Placement source, Placement target){
 /* PUSH
  * Adds and element to an HashMap of Unordered Sets
  */
-void KCMC_Instance::push(std::unordered_map<int, std::unordered_set<int>> &buffer, const int source, const int target){
+void push(std::unordered_map<int, std::unordered_set<int>> &buffer, const int source, const int target){
     if (isin(buffer, source)){buffer[source].insert(target);}
     else {
         std::unordered_set<int> new_set;
@@ -84,11 +131,14 @@ void KCMC_Instance::push(std::unordered_map<int, std::unordered_set<int>> &buffe
 }
 
 
-/** RANDOM-INSTANCE GENERATOR CONSTRUCTOR
- * Constructor of a random KCMC instance object
+/* #####################################################################################################################
+ * INSTANCE OPERATION
  */
 
 
+/** RANDOM-INSTANCE GENERATOR CONSTRUCTOR
+ * Constructor of a random KCMC instance object
+ */
 KCMC_Instance::KCMC_Instance(int num_pois, int num_sensors, int num_sinks,
                              int area_side, int coverage_radius, int communication_radius,
                              long long random_seed) {
@@ -175,8 +225,6 @@ KCMC_Instance::KCMC_Instance(int num_pois, int num_sensors, int num_sinks,
 /** INSTANCE DE-SERIALIZER CONSTRUCTOR
  * Constructor of a KCMC instance object from a serialized string
  */
-
-
 KCMC_Instance::KCMC_Instance(const std::string& serialized_kcmc_instance) {
     /** Instance de-serializer constructor
      * This constructor is used to load a previously-generated instance. Node placements are irrelevant
@@ -241,11 +289,14 @@ KCMC_Instance::KCMC_Instance(const std::string& serialized_kcmc_instance) {
 }
 
 
+/** Utility method to the De-Serializer Constructor
+ */
 int KCMC_Instance::parse_edge(const int stage, const std::string& token){
     /* Instance de-serializer helper method. Parses a single edge */
 
     // Parse the stage itself
-    if (isin({"PS", "SS", "SK", "END"}, token)){
+    std::unordered_set<std::string> tags = {"PS", "SS", "SK", "END"};
+    if (isin(tags, token)){
         if      (token == "PS"){return 5;}
         else if (token == "SS"){return 6;}
         else if (token == "SK"){return 7;}
@@ -275,11 +326,14 @@ int KCMC_Instance::parse_edge(const int stage, const std::string& token){
 }
 
 
-/** FUNCTIONAL CLASS SERVICES
+/* #####################################################################################################################
+ * FUNCTIONAL CLASS SERVICES
  */
 
 
-std::string KCMC_Instance::key() const{
+/** Instance identification utility
+ */
+std::string KCMC_Instance::key() const {
     /* Returns the settings KEY of the instance */
     std::ostringstream out;
     out << num_pois  <<' '<< num_sensors            <<' '<< num_sinks                   << ';';
@@ -289,7 +343,9 @@ std::string KCMC_Instance::key() const{
 }
 
 
-std::string KCMC_Instance::serialize(){
+/** Instance serializer
+ */
+std::string KCMC_Instance::serialize() {
     /* Serializes an instance as an string */
     int source, target;
 
@@ -300,7 +356,7 @@ std::string KCMC_Instance::serialize(){
     out << "PS;";
     for (source=0; source<num_pois; source++) {
         for (target=0; target<num_sensors; target++) {
-            if (isin(this->poi_sensor[source], target)) {
+            if (isin(poi_sensor[source], target)) {
                 out << source << ' ' << target << ';';  // MUCH SLOWER than iterating the hashmap, but deterministic
             }
         }

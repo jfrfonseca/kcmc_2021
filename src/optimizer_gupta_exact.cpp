@@ -24,7 +24,7 @@
 
 
 void exit_signal_handler(int signal) {
-   std::cout << "Interrupt signal (" << signal << ") received. Exiting gracefully..." << std::endl;
+   std::cerr << "Interrupt signal (" << signal << ") received. Exiting gracefully..." << std::endl;
    exit(0);
 }
 
@@ -79,31 +79,15 @@ int genalg_gupta_exact(
     // The software will handle gracefully OS signals SIGINT, SIGALRM, SIGABRT and SIGTERM
     for (num_generation=0; num_generation<max_generations+1; num_generation++) {
 
-        if (not inspect_population(pop_size, chromo_size, pop)) {
-            std::cout << "AKI A " << num_generation << std::endl;
-        }
-
         // Evaluate the population
         for (i=0; i<pop_size; i++) {fitness[i] = fitness_gupta(wsn, K, M, w1, w2, w3, population[i]);}
-
-        if (not inspect_population(pop_size, chromo_size, pop)) {
-            std::cout << "AKI B " << num_generation << std::endl;
-        }
 
         // Print the best individual, that will be stored in the unused_sensors set
         current_best = get_best_individual(print_best, unused_sensors, chromo_size, pop_size, pop, fitness, num_generation, level_best);
         level_best = current_best < level_best ? current_best : level_best;  // Get always the smallest as best
 
-        if (not inspect_population(pop_size, chromo_size, pop)) {
-            std::cout << "AKI C " << num_generation << std::endl;
-        }
-
         // Select individuals for next generation
         selection_roulette(sel_size, &selection, pop_size, fitness);
-
-        if (not inspect_population(pop_size, chromo_size, pop)) {
-            std::cout << "AKI D " << num_generation << std::endl;
-        }
 
         // For every population position that was *not* selected
         for (i=0; i<pop_size; i++) {
@@ -118,18 +102,10 @@ int genalg_gupta_exact(
             }
         }
 
-        if (not inspect_population(pop_size, chromo_size, pop)) {
-            std::cout << "AKI E " << num_generation << std::endl;
-        }
-
         // For every individual in the population
         for (i=0; i<pop_size; i++) {
             // If this individual got lucky, randomly flip a bit
             if (((double) rand() / (RAND_MAX)) < mut_rate) {mutation_random_bit_flip(chromo_size, population[i]);}
-        }
-
-        if (not inspect_population(pop_size, chromo_size, pop)) {
-            std::cout << "AKI F " << num_generation << std::endl;
         }
     }
     std::cerr << " Reached HARD-LIMIT OF GENERATIONS (" << num_generation-1 << "). Exiting gracefully..." << std::endl;
@@ -168,6 +144,7 @@ int main(int argc, char* const argv[]) {
     signal(SIGABRT, exit_signal_handler);
     signal(SIGSTOP, exit_signal_handler);
     signal(SIGTERM, exit_signal_handler);
+    signal(SIGKILL, exit_signal_handler);
 
     // Buffers
     int print_interval, pop_size, sel_size, i, k, m;
@@ -193,7 +170,7 @@ int main(int argc, char* const argv[]) {
     auto *instance = new KCMC_Instance(argv[10]);
 
     // Optimize the instance using one of the optimization methods
-    genalg_gupta_exact(&unused_installation_spots, print_interval, 1000,
+    genalg_gupta_exact(&unused_installation_spots, print_interval, 100000,
                        pop_size, sel_size, mut_rate,
                        instance, k, m, w1, w2, w3);
 

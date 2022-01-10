@@ -90,40 +90,47 @@ bool inspect_population(int pop_size, int size, int **population) {
 int selection_roulette(int sel_size, std::vector<int> *selection, int pop_size, double *fitness) {
     // USED BY GUPTA
 
-    // Prepares an offset accumulator with 0 and a random positive double number.
-    int i, j, iterations=0;
-    double offset, random_number, sum_fitness = std::accumulate(fitness, fitness+pop_size, 0.0);
-
-    // WILL JAM INTO AN INFINITE LOOP IF THE SUM OF ALL FITNESSES IS <= 0.0!
-    // Thus we make a test first
-    if (sum_fitness <= 0.0) {throw std::runtime_error("THE SUM OF FITNESS MUST BE A POSITIVE VALUE!");}
-
-    // Clear out the selection vector
+    // Clear out the selection array
     selection->clear();
 
-    // Repeat until we have enough selected individuals
-    for (i=0; i<sel_size; i++) {
+    // Prepare an array to store already selected individual positions
+    double selected[pop_size];
+    std::fill(selected, selected+pop_size, 1.0);
 
-        // Reset the buffers
-        j = 0;
-        offset = fitness[0];
-        random_number = ((double)rand() / (RAND_MAX)) * sum_fitness;
+    // Compute the total fitness
+    double total_fitness = std::accumulate(fitness, fitness+pop_size, 0.0);
 
-        // Get the next position
-        while (offset < random_number) {
-            j = (j + 1) % pop_size;
-            if (not isin(selection, j)) {
-                offset += fitness[j];
-            }
+    // Generate a random value between 0 and the total fitness
+    double random_value = ((double)rand() / (RAND_MAX)) * total_fitness;
+
+    // While we still have not selected all values
+    int pos = -1, iterations = 0;
+    while (selection->size() < sel_size) {
+
+        // While the random value has not been fully drained
+        while (random_value > 0.0) {
+            pos = (pos + 1) % pop_size;  // Advance one position
+            random_value -= (fitness[pos] * selected[pos]);  // Drain the fitness of the current position, if unselected
             iterations++;
         }
 
-        // Add it to the selection and subtract it from the sum of all fitness
-        selection->push_back(j);
-        sum_fitness -= fitness[j];
-        if (sum_fitness <= 0.0) {throw std::runtime_error("THE SUM OF FITNESS MUST BE A POSITIVE VALUE!");}
+        // Select the position
+        selected[pos] = 0.0;
+        selection->push_back(pos);
+
+        // Decrease the total fitness value by the fitness of the selected value
+        total_fitness -= fitness[pos];
+
+        // THIS FUNCTION WILL JAM INTO AN INFINITE LOOP IF THE SUM OF ALL FITNESS IS <= 0.0!
+        // Thus we make a test first
+        if (total_fitness <= 0.0) {throw std::runtime_error("THE SUM OF FITNESS MUST BE A POSITIVE VALUE!");}
+
+        // Reset the position and the random value
+        pos = -1;
+        random_value = ((double) rand() / (RAND_MAX)) * total_fitness;
     }
 
+    // Return the number of iterations
     return iterations;
 }
 
@@ -146,47 +153,11 @@ int crossover_single_point(int size, int *chromo_a, int *chromo_b, int output[])
 
     int pos = rand() % size;  // Random bit
 
-    if (not inspect_individual(size, chromo_a)) {
-        std::cout << "AKI XA " << std::endl;
-    }
-
-    if (not inspect_individual(size, chromo_b)) {
-        std::cout << "AKI XB " << std::endl;
-    }
-
-    if (not inspect_individual(size, output)) {
-        std::cout << "AKI XO " << std::endl;
-    }
-
     // Copy the prefix of A into the output
     std::copy(chromo_a, chromo_a+pos, output);
 
-    if (not inspect_individual(size, chromo_a)) {
-        std::cout << "AKI YA " << std::endl;
-    }
-
-    if (not inspect_individual(size, chromo_b)) {
-        std::cout << "AKI YB " << std::endl;
-    }
-
-    if (not inspect_individual(size, output)) {
-        std::cout << "AKI YO " << std::endl;
-    }
-
     // Copy the suffix of source B into the output
     std::copy(chromo_b+pos+1, chromo_b+size, output);
-
-    if (not inspect_individual(size, chromo_a)) {
-        std::cout << "AKI ZA " << std::endl;
-    }
-
-    if (not inspect_individual(size, chromo_b)) {
-        std::cout << "AKI ZB " << std::endl;
-    }
-
-    if (not inspect_individual(size, output)) {
-        std::cout << "AKI ZO " << std::endl;
-    }
 
     // Return the crossover point
     return pos;

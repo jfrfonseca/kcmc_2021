@@ -18,54 +18,52 @@
  * */
 
 
-double fitness_gupta_exact(KCMC_Instance *wsn, int K, int M, double w1, double w2, double w3, int *chromo) {
+double fitness_gupta(KCMC_Instance *wsn, int K, int M, double w1, double w2, double w3, int *chromo) {
 
     // Reused buffers
-    double f1, f2 = 0.0, f3 = 0.0;
-    int i, num_active_sensors = 0, poi_coverage[wsn->num_pois], sensor_degree[wsn->num_sensors];
+    double f1, f2 = 0.0, f3;
+    int i, poi_coverage[wsn->num_pois], poi_connectivity[wsn->num_sensors];
 
-    // Format the chromossome as an unordered set of unused sensor installation spots. Count the number of used ones
+    // Format the chromossome as an unordered set of unused sensor installation spots.
     std::unordered_set<int> inactive_sensors;
     for (i=0; i<wsn->num_sensors; i++) {
         if (chromo[i] == 0) {
             inactive_sensors.insert(i);
-        } else {
-            num_active_sensors += 1;
         }
     }
 
-    // Objective F1 of Gupta - minimize the fraction of selected installation spots ------------------------------------
+    // Adapted Objective F1 of Gupta - MAXimize the proper fraction of UNused installation spots -----------------------
 
     // Compute the fraction of used sensor installation spots from the total available
-    f1 = (double)(num_active_sensors) / (double)(wsn->num_sensors);
+    f1 = (double)(inactive_sensors.size()) / (double)(wsn->num_sensors);
 
-    // Objective F2 of Gupta - Maximize the proper fraction of the target coverage of POIs -----------------------------
+    // Adapted Objective F2 of Gupta - MAXimize the proper fraction of K-Covered POIs, by OUR definition of coverage ---
 
     // Compute the total coverage of each POI
     wsn->get_coverage(poi_coverage, inactive_sensors);
 
-    // Accumulate the coverage, using Gupta's normalization
+    // Accumulate the total coverage, topping the coverage at each POI at "K"
     for (i=0; i<wsn->num_pois; i++) {
-        f2 += (double)((poi_coverage[i] >= K) ? K : (K - poi_coverage[i]));  // either K or K-coverage(poi_i)
+        f2 += (double)((poi_coverage[i] >= K) ? K : poi_coverage[i]);  // Cut the highest coverage as "K"
     }
 
     // Normalize to the 0-1 interval, as a proper fraction of the K*num_pois target coverage
     f2 = f2 / (double)(K * wsn->num_pois);
 
-    // Objective F3 - Maximize the proper fraction of the target connectivity of POIs ----------------------------------
-    // Gupta considers only the degree of each sensor as its connectivity!
+    // Adapted Objective F3 of Gupta - MAXimize the proper fraction of M-Connected POIs, by OUR definition of connectivity
+    // Gupta considers only the degree of each sensor!
 
-    // Compute the total degree of each Sensor
-    wsn->get_degree(sensor_degree, inactive_sensors);
-    for (i=0; i<wsn->num_sensors; i++) {
-        f3 += (double)((sensor_degree[i] >= M) ? M : (M - sensor_degree[i]));  // either M or M-degree(sensor_i)
-    }
+    // Compute the total connectivity of each POI, limiting it at M
+    wsn->get_connectivity(poi_connectivity, inactive_sensors, M);
 
-    // Normalize to the 0-1 interval, as a proper fraction of the M*num_sensors target connectivity
-    f3 = f3 / (double)(M * wsn->num_sensors);
+    // Accumulate the total connectivity
+    f3 = std::accumulate(poi_connectivity, poi_connectivity+wsn->num_pois, 0.0);
+
+    // Normalize to the 0-1 interval, as a proper fraction of the M*num_pois target connectivity
+    f3 = f3 / (double)(M * wsn->num_pois);
 
     // Weighted Linear Combination of the objectives -------------------------------------------------------------------
-    return (w1*(1.0-f1)) + (w2*f2) + (w3*f3);
+    return (w1*f1) + (w2*f2) + (w3*f3);
 }
 
 
@@ -80,12 +78,12 @@ double fitness_gupta_exact(KCMC_Instance *wsn, int K, int M, double w1, double w
  * @param wsn             KCMC WSN Instance
  * @param K               KCMC K
  * @param M               KCMC M
- * @param w1              GUPTA (2015) Weight for Objective 1
- * @param w2              GUPTA (2015) Weight for Objective 2
- * @param w3              GUPTA (2015) Weight for Objective 3
+ * @param w1              Adapted GUPTA (2015) Weight for Objective 1
+ * @param w2              Adapted GUPTA (2015) Weight for Objective 2
+ * @param w3              Adapted GUPTA (2015) Weight for Objective 3
  * @return
  */
-int genalg_gupta_exact(
+int genalg_gupta(
     std::unordered_set<int> *unused_sensors,
     int print_best, int max_generations, int pop_size, int sel_size, float mut_rate,
     KCMC_Instance *wsn, int K, int M,
@@ -115,7 +113,7 @@ int genalg_gupta_exact(
     for (num_generation=0; num_generation<max_generations+1; num_generation++) {
 
         // Evaluate the population
-        for (i=0; i<pop_size; i++) {fitness[i] = fitness_gupta_exact(wsn, K, M, w1, w2, w3, population[i]);}
+        for (i=0; i<pop_size; i++) {fitness[i] = fitness_gupta(wsn, K, M, w1, w2, w3, population[i]);}
 
         // Print the best individual, that will be stored in the unused_sensors set
         current_best = get_best_individual(print_best, unused_sensors, chromo_size, pop_size, pop, fitness, num_generation, level_best);
@@ -154,7 +152,7 @@ int genalg_gupta_exact(
 
 
 void help() {
-    std::cout << "Please, use the correct input for the KCMC instance optimizer, Exact Gupta (2015) version:" << std::endl << std::endl;
+    std::cout << "Please, use the correct input for the KCMC instance optimizer, Adapted Gupta (2015) version:" << std::endl << std::endl;
     std::cout << "./optimizer_gupta_exact <v> <p> <c> <r> <k> <m> <w1> <w2> <w3> <instance>" << std::endl;
     std::cout << "  where:" << std::endl << std::endl;
     std::cout << "V >= 0 is the desired Verbosity level - generations interval between individual printouts" << std::endl;
@@ -163,9 +161,9 @@ void help() {
     std::cout << "0 <= R <= 1.0 is the desired Individual Mutation Rate" << std::endl;
     std::cout << "K > 0 is the desired K coverage" << std::endl;
     std::cout << "M >= K is the desired M connectivity" << std::endl;
-    std::cout << "w1 > 0.0 is the double weight for the F1 objective of Gupta (2015)" << std::endl;
-    std::cout << "w2 > 0.0 is the double weight for the F2 objective of Gupta (2015)" << std::endl;
-    std::cout << "w3 > 0.0 is the double weight for the F3 objective of Gupta (2015)" << std::endl;
+    std::cout << "w1 > 0.0 is the double weight for the Adapted F1 objective of Gupta (2015)" << std::endl;
+    std::cout << "w2 > 0.0 is the double weight for the Adapted F2 objective of Gupta (2015)" << std::endl;
+    std::cout << "w3 > 0.0 is the double weight for the Adapted F3 objective of Gupta (2015)" << std::endl;
     std::cout << "<instance> is the serialized KCMC instance" << std::endl;
     exit(0);
 }
@@ -205,9 +203,9 @@ int main(int argc, char* const argv[]) {
     auto *instance = new KCMC_Instance(argv[10]);
 
     // Optimize the instance using one of the optimization methods
-    genalg_gupta_exact(&unused_installation_spots, print_interval, 100000,
-                       pop_size, sel_size, mut_rate,
-                       instance, k, m, w1, w2, w3);
+    genalg_gupta(&unused_installation_spots, print_interval, 100000,
+                 pop_size, sel_size, mut_rate,
+                 instance, k, m, w1, w2, w3);
 
     return 0;
 }

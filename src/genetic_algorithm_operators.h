@@ -14,6 +14,8 @@
 #ifndef GENETIC_ALGORITHM_OPERATORS_H
 #define GENETIC_ALGORITHM_OPERATORS_H
 
+void exit_signal_handler(int signal);
+
 int get_best_individual(int interval, std::unordered_set<int> *unused_sensors, int chromo_size, int pop_size,
                         int **population, double *fitness, int num_generation, int previous_best);
 
@@ -27,7 +29,5 @@ int selection_get_one(int sel_size, std::vector<int> selection, int avoid);
 int crossover_single_point(int size, int *chromo_a, int *chromo_b, int output[]);
 
 int mutation_random_bit_flip(int size, int chromo[]);
-
-double fitness_gupta(KCMC_Instance *wsn, int K, int M, double w1, double w2, double w3, int *chromo);
 
 #endif

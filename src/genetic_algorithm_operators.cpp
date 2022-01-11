@@ -18,6 +18,12 @@
 #include "genetic_algorithm_operators.h"
 
 
+void exit_signal_handler(int signal) {
+   std::cerr << "Interrupt signal (" << signal << ") received. Exiting gracefully..." << std::endl;
+   exit(0);
+}
+
+
 int get_best_individual(int interval, std::unordered_set<int> *unused_sensors, int chromo_size, int pop_size,
                         int **population, double *fitness, int num_generation, int previous_best) {
 
@@ -178,60 +184,3 @@ int mutation_random_bit_flip(int size, int chromo[]) {
     // Return the position of the flipped bit
     return pos;
 }
-
-
-/* #####################################################################################################################
- * GUPTA'S FITNESS FUNCTION
- * */
-
-
-double fitness_gupta(KCMC_Instance *wsn, int K, int M, double w1, double w2, double w3, int *chromo) {
-
-    // Reused buffers
-    double f1, f2 = 0.0, f3 = 0.0;
-    int i, num_active_sensors = 0, poi_coverage[wsn->num_pois], sensor_degree[wsn->num_sensors];
-
-    // Format the chromossome as an unordered set of unused sensor installation spots. Count the number of used ones
-    std::unordered_set<int> inactive_sensors;
-    for (i=0; i<wsn->num_sensors; i++) {
-        if (chromo[i] == 0) {
-            inactive_sensors.insert(i);
-        } else {
-            num_active_sensors += 1;
-        }
-    }
-
-    // Objective F1 of Gupta - minimize the fraction of selected installation spots ------------------------------------
-
-    // Compute the fraction of used sensor installation spots from the total available
-    f1 = (double)(num_active_sensors) / (double)(wsn->num_sensors);
-
-    // Objective F2 of Gupta - Maximize the proper fraction of the target coverage of POIs -----------------------------
-
-    // Compute the total coverage of each POI
-    wsn->get_coverage(poi_coverage, inactive_sensors);
-
-    // Accumulate the coverage, using Gupta's normalization
-    for (i=0; i<wsn->num_pois; i++) {
-        f2 += (double)((poi_coverage[i] >= K) ? K : (K - poi_coverage[i]));  // either K or K-coverage(poi_i)
-    }
-
-    // Normalize to the 0-1 interval, as a proper fraction of the K*num_pois target coverage
-    f2 = f2 / (double)(K * wsn->num_pois);
-
-    // Objective F3 - Maximize the proper fraction of the target connectivity of POIs ----------------------------------
-    // Gupta considers only the degree of each sensor as its connectivity!
-
-    // Compute the total degree of each Sensor
-    wsn->get_degree(sensor_degree, inactive_sensors);
-    for (i=0; i<wsn->num_sensors; i++) {
-        f3 += (double)((sensor_degree[i] >= M) ? M : (M - sensor_degree[i]));  // either M or M-degree(sensor_i)
-    }
-
-    // Normalize to the 0-1 interval, as a proper fraction of the M*num_sensors target connectivity
-    f3 = f3 / (double)(M * wsn->num_sensors);
-
-    // Weighted Linear Combination of the objectives -------------------------------------------------------------------
-    return (w1*(1.0-f1)) + (w2*f2) + (w3*f3);
-}
-

@@ -24,6 +24,9 @@ ADD_EXECUTABLE(instance_evaluator src/instance_evaluator.cpp)
 target_link_libraries(instance_evaluator KCMC_Module)
 
 
-## Optimizer -------------------------------------------------------------------
+## Optimizers -----------------------------------------------------------------
 ADD_EXECUTABLE(optimizer_gupta_exact src/optimizer_gupta_exact.cpp)
 target_link_libraries(optimizer_gupta_exact KCMC_Module)
+
+ADD_EXECUTABLE(optimizer_gupta src/optimizer_gupta.cpp)
+target_link_libraries(optimizer_gupta KCMC_Module)

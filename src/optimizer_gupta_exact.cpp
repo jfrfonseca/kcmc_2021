@@ -65,7 +65,7 @@ double fitness_gupta_exact(KCMC_Instance *wsn, int K, int M, double w1, double w
     f3 = f3 / (double)(M * wsn->num_sensors);
 
     // Weighted Linear Combination of the objectives -------------------------------------------------------------------
-    return (w1*(1.0-f1)) + (w2*f2) + (w3*f3);
+    return (w1*(1.0-f1)) + (w2*f2) + (w3*f3) / (w1+w2+w3);  // Normalized between 0 and 1
 }
 
 
@@ -96,11 +96,12 @@ int genalg_gupta_exact(
     int population[pop_size][chromo_size];
     double fitness[pop_size];
     std::vector<int> selection;
+    bool SAFE = true;
 
     // Prepare an alternate buffer for the population
     // Look, it's C++, OK? Sometimes things like that are necessary
     int *pop[chromo_size];
-    for (size_t j = 0; j<pop_size; j++) {pop[j] = population[j];}
+    if (SAFE) {for (size_t j = 0; j<pop_size; j++) {pop[j] = population[j];}}
 
     // Generate a random population
     for (i=0; i<pop_size; i++) {
@@ -142,6 +143,9 @@ int genalg_gupta_exact(
             // If this individual got lucky, randomly flip a bit
             if (((double) rand() / (RAND_MAX)) < mut_rate) {mutation_random_bit_flip(chromo_size, population[i]);}
         }
+
+        // If in safe mode, inspect the population once every 10 generations
+        if (SAFE & ((num_generation % 10) == 0)) {inspect_population(pop_size, wsn->num_sensors, pop);}
     }
     std::cerr << " Reached HARD-LIMIT OF GENERATIONS (" << num_generation-1 << "). Exiting gracefully..." << std::endl;
     return num_generation;

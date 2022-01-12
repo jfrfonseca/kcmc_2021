@@ -21,8 +21,8 @@
 double fitness_gupta(KCMC_Instance *wsn, int K, int M, double w1, double w2, double w3, int *chromo) {
 
     // Reused buffers
-    double f1, f2 = 0.0, f3;
-    int i, poi_coverage[wsn->num_pois], poi_connectivity[wsn->num_sensors];
+    double f1, f2, f3;
+    int i, if2 = 0, if3, poi_coverage[wsn->num_pois], poi_connectivity[wsn->num_pois];
 
     // Format the chromossome as an unordered set of unused sensor installation spots.
     std::unordered_set<int> inactive_sensors;
@@ -44,11 +44,11 @@ double fitness_gupta(KCMC_Instance *wsn, int K, int M, double w1, double w2, dou
 
     // Accumulate the total coverage, topping the coverage at each POI at "K"
     for (i=0; i<wsn->num_pois; i++) {
-        f2 += (double)((poi_coverage[i] >= K) ? K : poi_coverage[i]);  // Cut the highest coverage as "K"
+        if2 += (poi_coverage[i] >= K) ? K : poi_coverage[i];  // Cut the highest coverage as "K"
     }
 
     // Normalize to the 0-1 interval, as a proper fraction of the K*num_pois target coverage
-    f2 = f2 / (double)(K * wsn->num_pois);
+    f2 = ((double)(if2)) / ((double)(K * wsn->num_pois));
 
     // Adapted Objective F3 of Gupta - MAXimize the proper fraction of M-Connected POIs, by OUR definition of connectivity
     // Gupta considers only the degree of each sensor!
@@ -57,13 +57,13 @@ double fitness_gupta(KCMC_Instance *wsn, int K, int M, double w1, double w2, dou
     wsn->get_connectivity(poi_connectivity, inactive_sensors, M);
 
     // Accumulate the total connectivity
-    f3 = std::accumulate(poi_connectivity, poi_connectivity+wsn->num_pois, 0.0);
+    if3 = std::accumulate(poi_connectivity, poi_connectivity+wsn->num_pois, 0);
 
     // Normalize to the 0-1 interval, as a proper fraction of the M*num_pois target connectivity
-    f3 = f3 / (double)(M * wsn->num_pois);
+    f3 = ((double)(if3)) / (double)(M * wsn->num_pois);
 
     // Weighted Linear Combination of the objectives -------------------------------------------------------------------
-    return (w1*f1) + (w2*f2) + (w3*f3);
+    return ((w1*f1) + (w2*f2) + (w3*f3)) / (w1+w2+w3);  // Normalized between 0 and 1
 }
 
 
@@ -94,15 +94,16 @@ int genalg_gupta(
     int population[pop_size][chromo_size];
     double fitness[pop_size];
     std::vector<int> selection;
+    bool SAFE = true;
 
     // Prepare an alternate buffer for the population
     // Look, it's C++, OK? Sometimes things like that are necessary
     int *pop[chromo_size];
-    for (size_t j = 0; j<pop_size; j++) {pop[j] = population[j];}
+    if (SAFE) {for (size_t j = 0; j<pop_size; j++) {pop[j] = population[j];}}
 
     // Generate a random population
     for (i=0; i<pop_size; i++) {
-        individual_creation(0.5, chromo_size, population[i]);  // EQUAL BIAS FOR ONES AND ZEROES
+        individual_creation(0.95, chromo_size, population[i]);  // EQUAL BIAS FOR ONES AND ZEROES
     }
 
     // Evolve "FOREVER". THE OS IS SUPPOSED TO HANDLE TIMEOUTS!
@@ -140,6 +141,9 @@ int genalg_gupta(
             // If this individual got lucky, randomly flip a bit
             if (((double) rand() / (RAND_MAX)) < mut_rate) {mutation_random_bit_flip(chromo_size, population[i]);}
         }
+
+        // If in safe mode, inspect the population once every 10 generations
+        if (SAFE & ((num_generation % 10) == 0)) {inspect_population(pop_size, wsn->num_sensors, pop);}
     }
     std::cerr << " Reached HARD-LIMIT OF GENERATIONS (" << num_generation-1 << "). Exiting gracefully..." << std::endl;
     return num_generation;

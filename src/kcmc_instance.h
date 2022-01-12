@@ -132,7 +132,9 @@ class KCMC_Instance {
          * Validates k-coverage in the instance considering the given set of inactive sensors
          * Validates m-connectivity in the instance considering the given set of inactive sensors
          */
+        int fast_k_coverage(int k, std::unordered_set<int> &inactive_sensors);
         std::string k_coverage(int k, std::unordered_set<int> &inactive_sensors);
+        int fast_m_connectivity(int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *used_sensors);
         std::string m_connectivity(int m, std::unordered_set<int> &inactive_sensors);
 
     private:

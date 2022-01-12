@@ -100,20 +100,25 @@ int KCMC_Instance::find_path(const int poi_number, std::unordered_set<int> &used
 }
 
 
-/** M-CONNECTIVITY VALIDATOR USING DINIC'S ALGORITHM
+/** FAST M-CONNECTIVITY VALIDATOR USING DINIC'S ALGORITHM
+ * Fastest validator.
+ * It could also validate if every POI has at least M connections to sensors,
+ *     but it would be unnecessary if K-coverage has already been validated
+ *     and K >= M. Thus we do not try.
+ * We do, however, note every single sensor used anywhere in the resulting WSN
  */
-std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &inactive_sensors) {
+int KCMC_Instance::fast_m_connectivity(const int m, std::unordered_set<int> &inactive_sensors,
+                                       std::unordered_set<int> *all_used_sensors) {
     /** Verify if every POI has at least M different disjoint paths to all SINKs
      */
     // Base case
-    if (m < 1){return "SUCCESS";}
+    if (m < 1){return -1;}
 
     // Create the level graph
     int level_graph[this->num_sensors];
     this->level_graph(level_graph, inactive_sensors);
 
-    // Prepare the output buffer and the set of "used" sensors
-    std::ostringstream out;
+    // Prepare the set of "used" sensors
     std::unordered_set<int> used_sensors;
 
     // Create a loop control flag and pointer buffers
@@ -133,8 +138,7 @@ std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &
 
             // If the path ends in an invalid sensor, return the failure.
             if (path_end == -1) {
-                out << "POI " << a_poi << " CONNECTIVITY " << paths_found;
-                return out.str();
+                return (a_poi*1000000)+paths_found;  // Encoded the two ints. We must not have more than a Million POIs!
 
             // If success, count the path and mark all the sensors with predecessors as "used"
             } else {
@@ -142,6 +146,7 @@ std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &
                 // Unravel the path, marking each sensor in it as used
                 while (path_end != -1) {
                     used_sensors.insert(path_end);
+                    all_used_sensors->insert(path_end);  // Get the complete list of all used sensors
                     path_end = predecessors[path_end];
                     if (path_end == -2) {throw std::runtime_error("FORBIDDEN ADDRESS!");}
                 }
@@ -150,12 +155,29 @@ std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &
     }
 
     // Success in each and every POI!
-    return "SUCCESS";
+    return -1;
 }
+
+/** M-CONNECTIVITY VALIDATOR USING DINIC'S ALGORITHM
+ * Wrapper around the fastest validator, to allow for better process message passing.
+ */
+std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &inactive_sensors) {
+    std::unordered_set<int> used_sensors;
+    int failure_at = this->fast_m_connectivity(m, inactive_sensors, &used_sensors);
+    if (failure_at == -1) {return "SUCCESS";}
+    else {
+        std::ostringstream out;
+        int a_poi = failure_at / 1000000, paths_found = failure_at % 1000000;  // Decode the result
+        out << "POI " << a_poi << " CONNECTIVITY " << paths_found;
+        return out.str();
+    }
+}
+
 
 
 /** Connectivity getter
  * Gets the connectivity at each POI, and the number of POIs with any connectivity at all
+ * For faster results, limit the connectivity at "target".
  */
 int KCMC_Instance::get_connectivity(int buffer[], std::unordered_set<int> &inactive_sensors, int target) {
     // This method is a targeted variance to allow for a LARGE speedup in finding a smaller target
@@ -182,11 +204,11 @@ int KCMC_Instance::get_connectivity(int buffer[], std::unordered_set<int> &inact
             // Find a path
             path_end = this->find_path(a_poi, used_sensors, level_graph, predecessors);
 
-            // If the path ends in an invalid sensor, return the failure.
+            // If the path ends in an invalid sensor, stop the WHILE loop
             if (path_end == -1) {
                 buffer[a_poi] = paths_found;
                 has_connection += 1;
-                break;
+                paths_found = target;
 
             // If success, count the path and mark all the sensors with predecessors as "used"
             } else {
@@ -196,6 +218,10 @@ int KCMC_Instance::get_connectivity(int buffer[], std::unordered_set<int> &inact
                     used_sensors.insert(path_end);
                     path_end = predecessors[path_end];
                     if (path_end == -2) {throw std::runtime_error("FORBIDDEN ADDRESS!");}
+                }
+                // Store if we've reached the target
+                if (paths_found >= target) {
+                    buffer[a_poi] = paths_found;
                 }
             }
         }

@@ -55,25 +55,38 @@ int KCMC_Instance::get_degree(int buffer[], std::unordered_set<int> &inactive_se
 /** K-Coverage Validator
  * Very trivial k-coverage validator
  */
-std::string KCMC_Instance::k_coverage(const int k, std::unordered_set<int> &inactive_sensors) {
+int KCMC_Instance::fast_k_coverage(const int k, std::unordered_set<int> &inactive_sensors) {
     // Base case
-    if (k < 1){return "SUCCESS";}
+    if (k < 1){return -1;}
 
     // Start buffers
     unsigned long active_coverage;
-    std::ostringstream out;
 
     // For each POI, count its coverage, returning and error if insufficient
     for (int n_poi=0; n_poi < this->num_pois; n_poi++) {
         active_coverage = set_diff(poi_sensor[n_poi], inactive_sensors).size();
         if (active_coverage < k) {
-            out << "POI " << n_poi << " COVERAGE " << active_coverage;
-            return out.str();
+            return (n_poi*1000000)+(int)(active_coverage);
         }
     }
 
     // Success in each and every POI!
-    return "SUCCESS";
+    return -1;
+}
+
+
+/** K-COVERAGE VALIDATOR
+ * Wrapper around the fastest validator, to allow for better process message passing.
+ */
+std::string KCMC_Instance::k_coverage(const int k, std::unordered_set<int> &inactive_sensors) {
+    int failure_at = this->fast_k_coverage(k, inactive_sensors);
+    if (failure_at == -1) {return "SUCCESS";}
+    else {
+        std::ostringstream out;
+        int n_poi = failure_at / 1000000, active_coverage = failure_at % 1000000;  // Decode the result
+        out << "POI " << n_poi << " COVERAGE " << active_coverage;
+        return out.str();
+    }
 }
 
 

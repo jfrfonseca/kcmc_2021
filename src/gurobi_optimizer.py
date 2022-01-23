@@ -157,7 +157,7 @@ if __name__ == '__main__':
         for line_no, serialized_instance in enumerate(input_file):
 
             # Get the serialized instance
-            serialized_instance = serialized_instance.strip().split(',')[0].strip().upper()
+            serialized_instance = serialized_instance.strip().split(',')[0].split('\t')[0].strip().upper()
             if not serialized_instance.startswith('KCMC'): continue  # Only valid lines. Skip the rest
 
             # Parse the KEY of the instance

@@ -16,7 +16,10 @@
  * */
 
 
-void help() {
+void help(int argc, char* const argv[]) {
+    std::cout << "RECEIVED LINE (" << argc << "): ";
+    for (int i=0; i<argc; i++) {std::cout << argv[i] << " ";}
+    std::cout << std::endl;
     std::cout << "Please, use the correct input for the KCMC instance generator:" << std::endl << std::endl;
     std::cout << "./instance_generator <p> <s> <k> <area_s> <cov_v> <com_r> <seed>+" << std::endl;
     std::cout << "  where:" << std::endl << std::endl;
@@ -35,16 +38,16 @@ void help() {
 
 
 int main(int argc, char* const argv[]) {
-    if (argc < 8) {help();}
+    if (argc < 7) {help(argc, argv);}
 
     /* ======================== *
      * PARSE THE INPUT SETTINGS *
      * ======================== */
 
     /* Prepare Buffers */
-    int i, num_pois, num_sensors, num_sinks, area_side, coverage_radius, communication_radius;
-    long long random_seed;
-    std::unordered_set<int> emptyset;
+    int i, num_pois, num_sensors, num_sinks, area_side, coverage_radius, communication_radius, success, k, m;
+    long long random_seed, previous_seed = 1000000000;
+    std::unordered_set<int> emptyset, ignoredset;
 
     /* Parse CMD SETTINGS */
     num_pois    = atoi(argv[1]);
@@ -61,24 +64,57 @@ int main(int argc, char* const argv[]) {
     for (i=7; i<argc; i++) {
         random_seed = atoll(argv[i]);
 
-        try {
-            auto *instance = new KCMC_Instance(num_pois, num_sensors, num_sinks,
-                                               area_side, coverage_radius, communication_radius,
-                                               random_seed);
-            printf("%s\n", instance->serialize().c_str());
+        // FAIL-SAFE mode
+        if (random_seed == 0) {
 
-            /* FOR VERIFICATION */
-            if (argc == 7){
-                std::string serialized_instance = instance->serialize();
-                auto *new_instance = new KCMC_Instance(serialized_instance);
-                if (new_instance->serialize() == instance->serialize()){
-                    printf("%s\nEQUAL\n", new_instance->serialize().c_str());
-                } else {throw std::runtime_error("NOT EQUAL!");}
+            // Read K and M
+            k = atoi(argv[i+1]);
+            m = atoi(argv[i+2]);
+            i += 2;
+
+            // Start from the last random seed
+            random_seed = previous_seed + 1;
+
+            // Try many times until get a valid instance
+            while (random_seed < (previous_seed + 10000)) {  // MANY ATTEMPTS!
+                success = 0;
+                auto *instance = new KCMC_Instance(num_pois, num_sensors, num_sinks,
+                                                   area_side, coverage_radius, communication_radius,
+                                                   random_seed);
+                success = instance->fast_k_coverage(k, emptyset);
+                if (success == -1) {
+                    success = instance->fast_m_connectivity(m, emptyset, &ignoredset);
+                    if (success == -1) {
+                        printf("%s\t(K%dM%d)\n", instance->serialize().c_str(), k, m);
+                        previous_seed = random_seed;
+                        break;
+                    }
+                }
+                random_seed++;
             }
+            if (success != -1) {printf("UNABLE TO GENERATE VALID INSTANCE WITH PARAMETERS %d %d %d %d %d %d 0 %d %d\n",
+                                       num_pois, num_sensors, num_sinks, area_side, coverage_radius, communication_radius, k, m);}
+        } else {
+            // FAIL-PRONE MODE
+            try {
+                auto *instance = new KCMC_Instance(num_pois, num_sensors, num_sinks,
+                                                   area_side, coverage_radius, communication_radius,
+                                                   random_seed);
+                printf("%s\n", instance->serialize().c_str());
 
-        } catch (const std::exception &exc) {
-            if (argc == 8) {throw  exc;}  // Only throw the exception if we're in DEBUG mode
-            fprintf(stderr, "%lld\t%s\n", random_seed, exc.what());
+                /* FOR VERIFICATION */
+                if (argc == 7) {
+                    std::string serialized_instance = instance->serialize();
+                    auto *new_instance = new KCMC_Instance(serialized_instance);
+                    if (new_instance->serialize() == instance->serialize()) {
+                        printf("%s\nEQUAL\n", new_instance->serialize().c_str());
+                    } else { throw std::runtime_error("NOT EQUAL!"); }
+                }
+
+            } catch (const std::exception &exc) {
+                if (argc == 8) { throw exc; }  // Only throw the exception if we're in DEBUG mode
+                fprintf(stderr, "%lld\t%s\n", random_seed, exc.what());
+            }
         }
     }
 

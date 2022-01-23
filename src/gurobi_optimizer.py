@@ -23,40 +23,18 @@ def run_gurobi_optimizer(serialized_instance:str,
                          log:callable=print, LOGFILE:str=None,
                          model_factory=gurobi_multi_flow) -> dict:
 
-    # Prepare the results object
-    results = {'kcmc_k': kcmc_k, 'kcmc_m': kcmc_m, 'time_limit': time_limit, 'threads': threads,
-               'raw': {'installation': {}},
-               'single_sink': {'installation': {}},
-               'optimization': {'X': []}}
+    # Prepare the results metadata object
+    metadata = {'kcmc_k': kcmc_k, 'kcmc_m': kcmc_m, 'time_limit': time_limit, 'threads': threads}
 
     # De-Serialize the instance as a KCMC_Instance object.
     # It MIGHT be multisink and thus incompatible with the ILP formulation
-    maybe_multisink_instance = KCMC_Instance(serialized_instance, False, True, True)
-    log(f'Parsed raw instance of key {maybe_multisink_instance.key_str}')
+    instance = KCMC_Instance(serialized_instance, False, True, True)
+    log(f'Parsed raw instance of key {instance.key_str}')
 
     # Add metadata to the result object
-    results['raw'].update({
-        'key': maybe_multisink_instance.key_str,
-        'instance': serialized_instance,
-        'pois': maybe_multisink_instance.num_pois,
-        'sensors': maybe_multisink_instance.sensors,
-        'sinks': maybe_multisink_instance.num_sinks,
-        'area_side': maybe_multisink_instance.area_side,
-        'coverage_radius': maybe_multisink_instance.sensor_coverage_radius,
-        'communication_radius': maybe_multisink_instance.sensor_communication_radius,
-        'coverage_density': maybe_multisink_instance.coverage_density,
-        'communication_density': maybe_multisink_instance.communication_density
-    })
-
-    # Convert the instance to a single-sink version.
-    # Use M as the MAX_M parameter for minimal impact on performance
-    instance = maybe_multisink_instance.to_single_sink(MAX_M=kcmc_m)
-    log('Ensured single-sink instance')
-
-    # Add metadata to the result object
-    results['single_sink'].update({
+    metadata.update({
         'key': instance.key_str,
-        'instance': instance.string,
+        'instance': serialized_instance,
         'pois': instance.num_pois,
         'sensors': instance.sensors,
         'sinks': instance.num_sinks,
@@ -64,9 +42,14 @@ def run_gurobi_optimizer(serialized_instance:str,
         'coverage_radius': instance.sensor_coverage_radius,
         'communication_radius': instance.sensor_communication_radius,
         'coverage_density': instance.coverage_density,
-        'communication_density': instance.communication_density,
-        'virtual_sinks': {k: list(v) for k, v in instance.virtual_sinks_map.items()}
+        'communication_density': instance.communication_density
     })
+
+    # WE ASSUME SINGLE-SINK INSTANCES
+    # # Convert the instance to a single-sink version.
+    # # Use M as the MAX_M parameter for minimal impact on performance
+    # instance = maybe_multisink_instance.to_single_sink(MAX_M=kcmc_m)
+    # log('Ensured single-sink instance')
 
     # MODEL SETUP ======================================================================================================
 
@@ -78,24 +61,24 @@ def run_gurobi_optimizer(serialized_instance:str,
 
     # Run the execution
     log('STARTING OPTIMIZATION ' + ('*'*38))
-    results['optimization'] = model.optimize()
+    results = model.optimize()
     log('OPTIMIZATION DONE ' + ('*'*42))
 
     # Store some metadata
-    results['optimization'].update(results)
-    log(f'OPTIMIZATION STATUS: {results["optimization"]["status"]}')
-    log(f'QUANTITY OF SOLUTIONS FOUND: {results["optimization"]["solutions_count"]}')
+    results.update(metadata)
+    log(f'OPTIMIZATION STATUS: {results["status"]}')
+    log(f'QUANTITY OF SOLUTIONS FOUND: {results["solutions_count"]}')
 
     # Store the values of X
-    if 'OPTIMAL' in results["optimization"]["status"]:
+    if 'OPTIMAL' in results["status"]:
         tuplelist, installation = get_installation(X)
-        results['optimization']['X'] = tuplelist
-        results['single_sink']['installation'] = installation
+        results['X'] = tuplelist
+        results['installation'] = installation
 
-    # Parse the used spots
-    results['single_sink']['used_spots'] = [s for s, i in results['single_sink']['installation'].items()]
-    results['raw']['installation'] = {instance.virtual_sinks_dict.get(s, s): t for s, t in results['single_sink']['installation'].items()}
-    results['raw']['used_spots'] = [s for s, i in results['raw']['installation'].items()]
+        # Parse the used spots
+        results['used_spots'] = [s for s, i in results['installation'].items()]
+        # results['raw']['installation'] = {instance.virtual_sinks_dict.get(s, s): t for s, t in results['single_sink']['installation'].items()}  # ASSUME SINGLE SINK
+        # results['raw']['used_spots'] = [s for s, i in results['raw']['installation'].items()]  # ASSUME SINGLE SINK
 
     log('DONE '+('*'*55))
     return results
@@ -121,7 +104,7 @@ def process_instance(kcmc_k:int, kcmc_m:int, time_limit:int, threads:int, serial
         # Save the results on disk and exit with success
         with open(RESULTS_KEY+'.json', 'w') as fout:
             json.dump(results, fout, indent=2)
-        return KEY, results['optimization']['status']
+        return KEY, results['status']
     except Exception as exp:
         with open(RESULTS_KEY+'.err', 'a') as fout:
             fout.write(f'KEY {KEY} AT {datetime.now()}\n{traceback.format_tb(exp)}\n\n')
@@ -186,7 +169,7 @@ if __name__ == '__main__':
                             json.dump(results, fout, indent=2)
 
                         # Printout the result status
-                        result = '{}\t{} {}'.format(line_no, KEY, results['optimization']['status'])
+                        result = '{}\t{} {}'.format(line_no, KEY, results['status'])
                     except Exception as exp:
                         with open(RESULTS_KEY+'.err', 'a') as fout:
                             fout.write(f'KEY {KEY} AT {datetime.now()}\nERROR - {exp}\n{traceback.format_exc()}\n\n')

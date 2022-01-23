@@ -78,7 +78,7 @@ def run_gurobi_optimizer(serialized_instance:str,
 
     # Run the execution
     log('STARTING OPTIMIZATION ' + ('*'*38))
-    results = model.optimize()
+    results['optimization'] = model.optimize()
     log('OPTIMIZATION DONE ' + ('*'*42))
 
     # Store some metadata

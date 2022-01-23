@@ -134,14 +134,22 @@ if __name__ == '__main__':
     kcmc_m = int(float(str(args.kcmc_m)))
     assert kcmc_k >= kcmc_m, 'KCMC K MUST BE NO SMALLER THAN KCMC M!'
     assert os.path.exists(input_csv_file), f'INPUT CSV FILE {input_csv_file} DOES NOT EXISTS!'
+    processed_instances = set()
 
     # For each line in the input file (assuming there is no header)
     with open(input_csv_file, 'r') as input_file:
         for line_no, serialized_instance in enumerate(input_file):
 
             # Get the serialized instance
-            serialized_instance = serialized_instance.strip().split(',')[0].split('\t')[0].strip().upper()
+            s_line = serialized_instance.strip().split(',')[0].strip()
+            serialized_instance = s_line.split('\t')[0].strip().upper()
             if not serialized_instance.startswith('KCMC'): continue  # Only valid lines. Skip the rest
+
+            # Check if the instance is pre-certified
+            precert = s_line.split('\t')[-1].strip().upper() if (('\t' in s_line) and (s_line.endswith(')'))) else None
+            if precert is not None:
+                if f'(K{kcmc_k}M{kcmc_m})' != precert:
+                    continue
 
             # Parse the KEY of the instance
             KEY = '_'.join(serialized_instance.split(';', 4)[:4])
@@ -152,6 +160,8 @@ if __name__ == '__main__':
 
             # If we do manage to acquire the LOCK to the results key:
             try:
+                if serialized_instance in processed_instances: continue
+                processed_instances.add(serialized_instance)
                 with FileLock(RESULTS_KEY+'.log', timeout=None, delay=None):
 
                     # Start the logger

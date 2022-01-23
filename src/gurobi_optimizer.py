@@ -13,7 +13,7 @@ from datetime import datetime
 
 # This package
 from kcmc_instance import KCMC_Instance
-from gurobi_models import get_instalation, gurobi_multi_flow
+from gurobi_models import get_installation, gurobi_multi_flow
 from filelock import FileLock, FileLockException
 
 

@@ -92,7 +92,7 @@ services:
     profiles:
       - gurobi
     image: gurobi/python:9.1.2
-    command: "python -u /home/gurobi/src/gurobi_optimizer.py /data/instances.csv 4 3 -l 3600 -t 1"
+    command: "python -u /home/gurobi/src/gurobi_optimizer.py /data/instances.csv 3 3 -l 3600 -t 1"
     environment:
       GRB_CLIENT_LOG: 3
       PYTHONPATH: "/home/gurobi/src"

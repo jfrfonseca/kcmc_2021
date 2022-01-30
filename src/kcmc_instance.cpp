@@ -75,6 +75,36 @@ int KCMC_Instance::fast_k_coverage(const int k, std::unordered_set<int> &inactiv
 }
 
 
+/** K-Coverage Validator that also returns the used sensors in k coverage
+ * Very trivial k-coverage validator
+ */
+int KCMC_Instance::fast_k_coverage(const int k, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *result_buffer) {
+    // Clear the set of active sensors
+    result_buffer->clear();
+
+    // Base case
+    if (k < 1){return -1;}
+
+    // Start buffers
+    std::unordered_set<int> buffer_set, all_used_sensors;
+    unsigned long active_coverage;
+
+    // For each POI, count its coverage, returning and error if insufficient. Also note all used sensors
+    for (int n_poi=0; n_poi < this->num_pois; n_poi++) {
+        buffer_set = set_diff(poi_sensor[n_poi], inactive_sensors);
+        active_coverage = buffer_set.size();
+        all_used_sensors = set_merge(all_used_sensors, buffer_set);
+        *result_buffer = all_used_sensors;
+        if (active_coverage < k) {
+            return (n_poi*1000000)+(int)(active_coverage);
+        }
+    }
+
+    // Success in each and every POI!
+    return -1;
+}
+
+
 /** K-COVERAGE VALIDATOR
  * Wrapper around the fastest validator, to allow for better process message passing.
  */

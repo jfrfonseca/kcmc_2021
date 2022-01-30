@@ -92,15 +92,15 @@ int genalg_gupta_exact(
     double w1, double w2, double w3
 ) {
     // Prepare buffers
-    int i, level_best=INT32_MAX, current_best, num_generation, parent_0, parent_1, chromo_size = wsn->num_sensors;
+    int i, num_generation, parent_0, parent_1, chromo_size = wsn->num_sensors;
     int population[pop_size][chromo_size];
-    double fitness[pop_size];
+    double fitness[pop_size], level_best = 0.0, current_best;
     std::vector<int> selection;
     bool SAFE = true;
 
     // Prepare an alternate buffer for the population
     // Look, it's C++, OK? Sometimes things like that are necessary
-    int *pop[chromo_size];
+    int *pop[pop_size];
     if (SAFE) {for (size_t j = 0; j<pop_size; j++) {pop[j] = population[j];}}
 
     // Generate a random population
@@ -119,8 +119,9 @@ int genalg_gupta_exact(
         for (i=0; i<pop_size; i++) {fitness[i] = fitness_gupta_exact(wsn, K, M, w1, w2, w3, population[i]);}
 
         // Print the best individual, that will be stored in the unused_sensors set
-        current_best = get_best_individual(print_best, unused_sensors, chromo_size, pop_size, pop, fitness, num_generation, level_best);
-        level_best = current_best < level_best ? current_best : level_best;  // Get always the smallest as best
+        i = get_best_individual(print_best, unused_sensors, chromo_size, pop_size, pop, fitness, num_generation, level_best);
+        current_best = fitness[i];
+        level_best = current_best >= level_best ? current_best : level_best;  // Get always the largest fitness
 
         // Select individuals for next generation
         selection_roulette(sel_size, &selection, pop_size, fitness);

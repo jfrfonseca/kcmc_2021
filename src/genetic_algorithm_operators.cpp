@@ -24,34 +24,57 @@ void exit_signal_handler(int signal) {
 }
 
 
+void printout(int num_generation, int chromo_size, int *individual, double fitness) {
+
+    // Get the number of USED sensors in the individual
+    int num_used = std::accumulate(individual, individual+chromo_size, 0);
+
+    // Prepare the output buffer
+    std::ostringstream out;
+
+    // Print header in the first generation
+    if (num_generation == 0) {out << "GEN_IT\tTIMESTAMP_MS\tSIZE\tUNUSED\tFITNESS\tCHROMOSSOME" << std::endl;}
+
+    // Print a line with:
+    // - The number of the current generation
+    // - The current timestamp
+    // - The number of used sensors in the individual
+    // - The percentage of UNused sensors in the individual
+    // - The given fitness value
+    // - The individual itself
+    out << std::setfill('0') << std::setw(5) << num_generation
+        << "\t" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
+        << "\t" << std::setfill('0') << std::setw(5) << num_used
+        << "\t" << std::fixed << std::setprecision(3) << ((double)(chromo_size - num_used)) / ((double)chromo_size)
+        << "\t" << std::fixed << std::setprecision(3) << fitness
+        << "\t";
+    for (int i=0; i<chromo_size; i++) {out << individual[i];}
+    // Flush
+    std::cout << out.str() << std::endl;
+}
+
+
 int get_best_individual(int interval, std::unordered_set<int> *unused_sensors, int chromo_size, int pop_size,
-                        int **population, double *fitness, int num_generation, int previous_best) {
+                        int **population, double *fitness, int num_generation, double overall_best) {
 
     // Get the position of the best fitness in the fitness array
-    int i, num_used, best = ((int)(std::max_element(fitness, fitness + pop_size) - fitness));
+    int i, best = ((int)(std::max_element(fitness, fitness + pop_size) - fitness));
 
     // Reset and Store the best individual in the unused sensors set - only the unused sensors' positions
     unused_sensors->clear();
-    for (i=0; i<chromo_size; i++) {if (population[best][i] == 0) {unused_sensors->insert(i);}}
-
-    // Get the number of USED sensors
-    num_used = chromo_size - ((int)(unused_sensors->size()));
-
-    // If required, printout in a single flush
-    if (((num_generation % interval) == 0) | (num_used < previous_best)) {
-        if (num_generation == 0) {std::cout << "GEN_IT\tTIMESTAMP_MS\tSIZE\tFITNESS\tCHROMOSSOME" << std::endl;}
-        std::ostringstream out;
-        out << std::setfill('0') << std::setw(5) << num_generation
-            << "\t" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
-            << "\t" << std::setfill('0') << std::setw(5) << num_used
-            << "\t" << std::fixed << std::setprecision(3) << fitness[best]
-            << "\t";
-        for (i=0; i<chromo_size; i++) {out << population[best][i];}
-        std::cout << out.str() << std::endl;
+    for (i=0; i<chromo_size; i++) {
+        if (population[best][i] == 0) {
+            unused_sensors->insert(i);
+        }
     }
 
-    // Return the number of USED sensors
-    return num_used;
+    // If the best individual has higher fitness than the overall best value, or we are at the right moment, printout
+    if (((num_generation % interval) == 0) | (fitness[best] > overall_best)) {
+        printout(num_generation, chromo_size, population[best], fitness[best]);
+    }
+
+    // Return the best fitness POSITION
+    return best;
 }
 
 
@@ -113,6 +136,10 @@ int selection_roulette(int sel_size, std::vector<int> *selection, int pop_size, 
     int pos = -1, iterations = 0;
     while (selection->size() < sel_size) {
 
+        // THIS FUNCTION WILL JAM INTO AN INFINITE LOOP IF THE SUM OF ALL FITNESS IS <= 0.0!
+        // Thus we make a test first
+        if (total_fitness <= 0.0) {throw std::runtime_error("THE SUM OF FITNESS MUST BE A POSITIVE VALUE!");}
+
         // While the random value has not been fully drained
         while (random_value > 0.0) {
             pos = (pos + 1) % pop_size;  // Advance one position
@@ -126,10 +153,6 @@ int selection_roulette(int sel_size, std::vector<int> *selection, int pop_size, 
 
         // Decrease the total fitness value by the fitness of the selected value
         total_fitness -= fitness[pos];
-
-        // THIS FUNCTION WILL JAM INTO AN INFINITE LOOP IF THE SUM OF ALL FITNESS IS <= 0.0!
-        // Thus we make a test first
-        if (total_fitness <= 0.0) {throw std::runtime_error("THE SUM OF FITNESS MUST BE A POSITIVE VALUE!");}
 
         // Reset the position and the random value
         pos = -1;
@@ -182,5 +205,29 @@ int mutation_random_bit_flip(int size, int chromo[]) {
     chromo[pos] = (chromo[pos] == 1) ? 0 : 1 ;  // Bit flip
 
     // Return the position of the flipped bit
+    return pos;
+}
+
+
+int mutation_random_set(int size, int chromo[]) {
+    // Randomly set a zero to a one, with at most 2*size attempts
+
+    int pos, limit = 0;
+    do {pos = rand() % size; limit++;} while (chromo[pos] == 1 and (limit < (size*2))); // random bit that is a one
+    chromo[pos] = 1 ;  // Set bit
+
+    // Return the position of the set bit
+    return pos;
+}
+
+
+int mutation_random_reset(int size, int chromo[]) {
+    // Randomly set a one to a zero, with at most 2*size attempts
+
+    int pos, limit = 0;
+    do {pos = rand() % size; limit++;} while (chromo[pos] == 0 and (limit < (size*2))); // random bit that is a one
+    chromo[pos] = 0 ;  // Reset bit
+
+    // Return the position of the reset bit
     return pos;
 }

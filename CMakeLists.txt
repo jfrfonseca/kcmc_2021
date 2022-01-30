@@ -24,9 +24,11 @@ ADD_EXECUTABLE(instance_evaluator src/instance_evaluator.cpp)
 target_link_libraries(instance_evaluator KCMC_Module)
 
 
-## Optimizers -----------------------------------------------------------------
+## Optimizers (GEN ALG) -------------------------------------------------------
 ADD_EXECUTABLE(optimizer_gupta_exact src/optimizer_gupta_exact.cpp)
 target_link_libraries(optimizer_gupta_exact KCMC_Module)
+ADD_EXECUTABLE(optimizer_gupta_adapted src/optimizer_gupta_adapted.cpp)
+target_link_libraries(optimizer_gupta_adapted KCMC_Module)
 
-ADD_EXECUTABLE(optimizer_gupta src/optimizer_gupta.cpp)
-target_link_libraries(optimizer_gupta KCMC_Module)
+ADD_EXECUTABLE(optimizer_genalg_binary src/optimizer_binary_genalg.cpp)
+target_link_libraries(optimizer_genalg_binary KCMC_Module)

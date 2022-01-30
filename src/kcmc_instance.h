@@ -61,9 +61,7 @@ std::unordered_set<int> set_diff(const std::unordered_set<int> &left, const std:
  * Returns the set that is the sum of the given sets
  */
 template<class T>
-T set_merge (T a, T b) {
-  T t(a); t.insert(b.begin(),b.end()); return t;
-}
+T set_merge (T a, T b) {T t(a); t.insert(b.begin(),b.end()); return t;}
 
 
 /** KCMC Instance
@@ -133,9 +131,12 @@ class KCMC_Instance {
          * Validates m-connectivity in the instance considering the given set of inactive sensors
          */
         int fast_k_coverage(int k, std::unordered_set<int> &inactive_sensors);
+        int fast_k_coverage(int k, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *all_used_sensors);
         std::string k_coverage(int k, std::unordered_set<int> &inactive_sensors);
-        int fast_m_connectivity(int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *used_sensors);
+        int fast_m_connectivity(int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *all_used_sensors);
         std::string m_connectivity(int m, std::unordered_set<int> &inactive_sensors);
+
+        int local_optima(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *all_used_sensors);
 
     private:
         int parse_edge(int stage, const std::string& token);

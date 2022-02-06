@@ -153,45 +153,46 @@ if __name__ == '__main__':
             kcmc_m = int(kcmc.split('M')[-1].split(')')[0])
             assert kcmc_k >= kcmc_m, 'KCMC K MUST BE NO SMALLER THAN KCMC M!'
 
+            if serialized_instance in processed_instances: continue
+            processed_instances.add(serialized_instance)
+
             # Parse the KEY of the instance
             KEY = '_'.join(serialized_instance.split(';', 4)[:4])
 
             # Since we have two variations of the gurobi optimizer formulation, we test with both
-            for suffix, factory in [('.single', gurobi_single_flow), ('.multi', gurobi_multi_flow)]:
+            for MODEL_TYPE, factory in [('.single', gurobi_single_flow), ('.multi', gurobi_multi_flow)]:
 
                 # Check if the RESULTS file already exists. If so, skip.
-                RESULTS_KEY = f'/home/gurobi/results/{KEY}{suffix}'
+                RESULTS_KEY = f'/home/gurobi/results/{KEY}{MODEL_TYPE}'
                 if os.path.exists(RESULTS_KEY+'.json'): continue
 
                 # If we do manage to acquire the LOCK to the results key:
                 try:
-                    if serialized_instance in processed_instances: continue
-                    processed_instances.add(serialized_instance)
                     with FileLock(RESULTS_KEY+'.log', timeout=None, delay=None):
 
                         # Start the logger
                         logging.basicConfig(filename=RESULTS_KEY+'.log', level=logging.DEBUG)
-                        def log(logstring): logging.info(KEY+suffix+':::'+logstring)
+                        def log(logstring): logging.info(KEY+MODEL_TYPE+':::'+logstring)
 
                         # Run the main execution, logging possible errors
                         try:
                             results = run_gurobi_optimizer(serialized_instance, kcmc_k, kcmc_m, time_limit,
                                                            threads, log, LOGFILE=RESULTS_KEY+'.log',
                                                            model_factory=factory)
-                            results['gurobi_model_type'] = suffix[1:]+'_flow'
+                            results['gurobi_model_type'] = MODEL_TYPE[1:]+'_flow'
 
                             # Save the results on disk and exit with success
                             with open(RESULTS_KEY+'.json', 'w') as fout:
                                 json.dump(results, fout, indent=2)
 
                             # Printout the result status
-                            result = '{}\t{} {} {}'.format(line_no, KEY+suffix, results['status'], results['mip_gap'])
+                            result = '{}\t{} {} {}'.format(line_no, KEY+MODEL_TYPE, results['status'], results['mip_gap'])
                         except Exception as exp:
                             with open(RESULTS_KEY+'.err', 'a') as fout:
-                                fout.write(f'KEY {KEY+suffix} AT {datetime.now()}\nERROR - {exp}\n{traceback.format_exc()}\n\n')
+                                fout.write(f'KEY {KEY+MODEL_TYPE} AT {datetime.now()}\nERROR - {exp}\n{traceback.format_exc()}\n\n')
 
                             # Printout the error
-                            result = '{}\t{} {}'.format(line_no, KEY+suffix, 'ERROR: '+str(exp))
+                            result = '{}\t{} {}'.format(line_no, KEY+MODEL_TYPE, 'ERROR: '+str(exp))
 
                         with open(STATEFILE, 'a') as fout:
                             fout.write(f'{datetime.now()} {result}\n')

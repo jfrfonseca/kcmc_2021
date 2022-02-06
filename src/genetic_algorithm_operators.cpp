@@ -5,6 +5,7 @@
  */
 
 
+#include <cmath>      // log2
 #include <chrono>     // time functions
 #include <iomanip>    // setfill, setw
 #include <iostream>   // cout, endl
@@ -24,7 +25,7 @@ void exit_signal_handler(int signal) {
 }
 
 
-void printout(int num_generation, int chromo_size, int *individual, double fitness) {
+void printout(int num_generation, double pop_entropy, int chromo_size, int *individual, double fitness) {
 
     // Get the number of USED sensors in the individual
     int num_used = std::accumulate(individual, individual+chromo_size, 0);
@@ -33,7 +34,7 @@ void printout(int num_generation, int chromo_size, int *individual, double fitne
     std::ostringstream out;
 
     // Print header in the first generation
-    if (num_generation == 0) {out << "GEN_IT\tTIMESTAMP_MS\tSIZE\tUNUSED\tFITNESS\tCHROMOSSOME" << std::endl;}
+    if (num_generation == 0) {out << "GEN_IT\tTIMESTAMP_MS\tENTROPY\tACTIVE\tFITNESS\tCHROMOSSOME" << std::endl;}
 
     // Print a line with:
     // - The number of the current generation
@@ -44,37 +45,13 @@ void printout(int num_generation, int chromo_size, int *individual, double fitne
     // - The individual itself
     out << std::setfill('0') << std::setw(5) << num_generation
         << "\t" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
-        << "\t" << std::setfill('0') << std::setw(5) << num_used
-        << "\t" << std::fixed << std::setprecision(3) << ((double)(chromo_size - num_used)) / ((double)chromo_size)
+        << "\t" << std::fixed << std::setprecision(5) << pop_entropy
+        << "\t" << std::setfill(' ') << std::setw(5) << num_used
         << "\t" << std::setfill(' ') << std::setw(7) << std::fixed << std::setprecision(1) << fitness
         << "\t";
     for (int i=0; i<chromo_size; i++) {out << individual[i];}
     // Flush
     std::cout << out.str() << std::endl;
-}
-
-
-int get_best_individual(int interval, std::unordered_set<int> *unused_sensors, int chromo_size, int pop_size,
-                        int **population, double *fitness, int num_generation, double overall_best) {
-
-    // Get the position of the best fitness in the fitness array
-    int i, best = ((int)(std::max_element(fitness, fitness + pop_size) - fitness));
-
-    // Reset and Store the best individual in the unused sensors set - only the unused sensors' positions
-    unused_sensors->clear();
-    for (i=0; i<chromo_size; i++) {
-        if (population[best][i] == 0) {
-            unused_sensors->insert(i);
-        }
-    }
-
-    // If the best individual has higher fitness than the overall best value, or we are at the right moment, printout
-    if (((num_generation % interval) == 0) | (fitness[best] > overall_best)) {
-        printout(num_generation, chromo_size, population[best], fitness[best]);
-    }
-
-    // Return the best fitness POSITION
-    return best;
 }
 
 
@@ -230,4 +207,24 @@ int mutation_random_reset(int size, int chromo[]) {
 
     // Return the position of the reset bit
     return pos;
+}
+
+
+double population_entropy(double *target, int pop_size, int chromo_size, int **population) {
+
+    // Create buffers
+    int i, j;
+    double p, size = (double)pop_size;
+
+    // For each column, compute its entropy among all individuals
+    for (j=0; j<chromo_size; j++) {
+        p = 0.0;
+        for (i=0; i<pop_size; i++) {p += population[i][j];} // Sum column J of every individual in the population
+        p = p / size;  // Compute the probability of ones
+        if ((p == 1.0) or (p == 0.0)) {target[j] = 0.0;}
+        else {target[j] = (-p * log2(p)) - ((1.0-p) * log2(1.0-p));}  // Compute Shannon entropy
+    }
+
+    // Return the average entropy of the entire population
+    return std::accumulate(target, target+pop_size, 0.0) / (double)chromo_size;
 }

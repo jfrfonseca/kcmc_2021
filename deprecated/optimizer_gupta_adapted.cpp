@@ -9,8 +9,8 @@
 #include <iostream>  // cin, cout, endl
 
 // Dependencies from this package
-#include "kcmc_instance.h"
-#include "genetic_algorithm_operators.h"
+#include "../src/kcmc_instance.h"
+#include "../src/genetic_algorithm_operators.h"
 
 
 /* #####################################################################################################################

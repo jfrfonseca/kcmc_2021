@@ -89,7 +89,7 @@ int genalg_binary(
     int i, best, num_generation, parent_0, parent_1,
         chromo_size = wsn->num_sensors,
         population[pop_size][chromo_size];
-    double best_fitness_ever = WORST_FITNESS, fitness[pop_size];
+    double pop_entropy, best_fitness_ever = WORST_FITNESS, fitness[pop_size], colunar_entropy[chromo_size];
     std::vector<int> selection;
 
     // FLAGS
@@ -111,16 +111,24 @@ int genalg_binary(
     // The software will handle gracefully OS signals SIGINT, SIGALRM, SIGABRT and SIGTERM
     for (num_generation=0; num_generation<max_generations+1; num_generation++) {
 
+        // If in safe mode, inspect the population once every INSPECTION_FREQUENCY generations
+        if (SAFE & ((num_generation % INSPECTION_FREQUENCY) == 0)) {inspect_population(pop_size, wsn->num_sensors, pop);}
+
         // Evaluate the population and find the best
         for (i=0; i<pop_size; i++) {fitness[i] = fitness_binary(wsn, K, M, w_valid, w_invalid, population[i]);}
         best = ((int)(std::min_element(fitness, fitness + pop_size) - fitness));
 
-        // Print the best individual in the population
-        // Print only if the current best is the best ever found,
+        // If the current best is the best ever found,
         // or if we have run the appropriate interval of generations.
-        // Update the best fitness ever in that case, and the result set of unused sensors
         if (((num_generation % print_interval) == 0) | (fitness[best] < best_fitness_ever)) {
-            printout(num_generation, chromo_size, population[best], fitness[best]);
+
+            // Compute the population's entropy, average and by column
+            pop_entropy = population_entropy(colunar_entropy, pop_size, chromo_size, pop);
+
+            // Print the best individual in the population
+            printout(num_generation, pop_entropy, chromo_size, population[best], fitness[best]);
+
+            // Update the best fitness ever found and the resulting set of unused sensors
             best_fitness_ever = fitness[best];
             setify(*unused_sensors, chromo_size, population[best], 0);
         }
@@ -148,9 +156,6 @@ int genalg_binary(
                 mutation_random_bit_flip(chromo_size, population[i]);
             }
         }
-
-        // If in safe mode, inspect the population once every INSPECTION_FREQUENCY generations
-        if (SAFE & ((num_generation % INSPECTION_FREQUENCY) == 0)) {inspect_population(pop_size, wsn->num_sensors, pop);}
     }
     std::cerr << " Reached HARD-LIMIT OF GENERATIONS (" << num_generation-1 << "). Exiting gracefully..." << std::endl;
     return num_generation;

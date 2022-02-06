@@ -5,6 +5,7 @@
 
 
 // STDLib Dependencies
+#include <unistd.h>  // getpid
 #include <iostream>  // cin, cout, endl
 
 // Dependencies from this package
@@ -46,7 +47,7 @@ int main(int argc, char* const argv[]) {
 
     /* Prepare Buffers */
     int i, num_pois, num_sensors, num_sinks, area_side, coverage_radius, communication_radius, success, k, m;
-    long long random_seed, previous_seed = 1000000000;
+    long long random_seed, previous_seed;
     std::unordered_set<int> emptyset, ignoredset;
 
     /* Parse CMD SETTINGS */
@@ -56,6 +57,10 @@ int main(int argc, char* const argv[]) {
     area_side   = atoi(argv[4]);
     coverage_radius = atoi(argv[5]);
     communication_radius = atoi(argv[6]);
+
+    // Get a random previous seed
+    srand(time(NULL) + getpid());  // Diferent seed in each run for each process
+    previous_seed = 100000000 + std::abs((rand() % 100000000)) + std::abs((rand() % 100000000));  // LARGE but random-er number
 
     /* ================== *
      * GENERATE INSTANCES *
@@ -85,8 +90,8 @@ int main(int argc, char* const argv[]) {
                 if (success == -1) {
                     success = instance->fast_m_connectivity(m, emptyset, &ignoredset);
                     if (success == -1) {
-                        printf("%s\t(K%dM%d)\n", instance->serialize().c_str(), k, m);
-                        previous_seed = random_seed;
+                        printf("%s | (K%dM%d)\n", instance->serialize().c_str(), k, m);
+                        previous_seed = random_seed + std::abs((rand() % 100000)) + 7;
                         break;
                     }
                 }

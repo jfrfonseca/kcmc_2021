@@ -14,61 +14,33 @@ services:
       - ./src:/app/src:ro
       - ./builds:/app/builds:rw
 
-  redis:
-    profiles:
-      - redis
-      - generator
-      - parser
-    image: "redis:alpine"
-    command: redis-server /data/redis.conf
-    ports:
-      - "6379:6379"
-    volumes:
-      - ./data:/data:rw
-
   generator:
     profiles:
       - generator
-    depends_on:
-      - redis
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    command: "python -u /src/instance_generator_driver.py /data/instance_generator_configurations.csv 200 --clear-locks"
-    build:
-      dockerfile: instance_generator.dockerfile
-      context: .
-    volumes:
-      - ./data:/data:ro
-      - ./src:/src:ro
-    deploy:
-      mode: replicated
-      replicas: 15
-
-  generator_failsafe:
-    profiles:
-      - generator_failsafe
-    command: '/src/run_instance_generator_failsafe.sh'
-    build:
-      dockerfile: instance_generator.dockerfile
-      context: .
-    volumes:
-      - ./data:/data:ro
-      - ./src:/src:ro
-
-  parser:
-    profiles:
-      - parser
-    depends_on:
-      - redis
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    command: "python -u /src/kcmc_instance.py /data/instances.csv 15 host.docker.internal --no-parsing"
+    command: '/src/run_instance_generator.sh'
     build:
       dockerfile: instance_generator.dockerfile
       context: .
     volumes:
       - ./data:/data:rw
       - ./src:/src:ro
+
+  gurobi:
+    profiles:
+      - gurobi
+    image: gurobi/python:9.1.2
+    command: "python -u /home/gurobi/src/gurobi_optimizer.py /data/instances.csv -l 3600 -t 1"
+    environment:
+      GRB_CLIENT_LOG: 3
+      PYTHONPATH: "/home/gurobi/src"
+    volumes:
+      - ./data/kcmc_gurobi.lic:/opt/gurobi/gurobi.lic:ro
+      - ./data:/data:ro
+      - ./src:/home/gurobi/src:ro
+      - ./analysis/results:/home/gurobi/results:rw
+    deploy:
+      mode: replicated
+      replicas: 2
 
   notebook:
     profiles:
@@ -88,19 +60,50 @@ services:
       - ./analysis:/home/gurobi/0_analysis:rw
       - ./src:/home/gurobi/0_analysis/src:ro
 
-  gurobi:
-    profiles:
-      - gurobi
-    image: gurobi/python:9.1.2
-    command: "python -u /home/gurobi/src/gurobi_optimizer.py /data/instances.csv 3 3 -l 3600 -t 1"
-    environment:
-      GRB_CLIENT_LOG: 3
-      PYTHONPATH: "/home/gurobi/src"
-    volumes:
-      - ./data/kcmc_gurobi.lic:/opt/gurobi/gurobi.lic:ro
-      - ./data:/data:ro
-      - ./src:/home/gurobi/src:ro
-      - ./analysis/results:/home/gurobi/results:rw
-    deploy:
-      mode: replicated
-      replicas: 2
+# The profiles below were used for the instance probability study
+#
+#  redis:
+#    profiles:
+#      - redis
+#      - generator
+#      - parser
+#    image: "redis:alpine"
+#    command: redis-server /data/redis.conf
+#    ports:
+#      - "6379:6379"
+#    volumes:
+#      - ./data:/data:rw
+#
+#  generator_random:
+#    profiles:
+#      - generator_random
+#    depends_on:
+#      - redis
+#    extra_hosts:
+#      - "host.docker.internal:host-gateway"
+#    command: "python -u /src/instance_generator_driver.py /data/instance_generator_configurations.csv 200 --clear-locks"
+#    build:
+#      dockerfile: instance_generator.dockerfile
+#      context: .
+#    volumes:
+#      - ./data:/data:ro
+#      - ./src:/src:ro
+#    deploy:
+#      mode: replicated
+#      replicas: 15
+#
+#  parser:
+#    profiles:
+#      - parser
+#    depends_on:
+#      - redis
+#    extra_hosts:
+#      - "host.docker.internal:host-gateway"
+#    command: "python -u /src/kcmc_instance.py /data/instances.csv 15 host.docker.internal --no-parsing"
+#    build:
+#      dockerfile: instance_generator.dockerfile
+#      context: .
+#    volumes:
+#      - ./data:/data:rw
+#      - ./src:/src:ro
+#

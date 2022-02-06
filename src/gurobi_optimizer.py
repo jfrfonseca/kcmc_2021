@@ -13,7 +13,7 @@ from datetime import datetime
 
 # This package
 from kcmc_instance import KCMC_Instance
-from gurobi_models import get_installation, gurobi_multi_flow
+from gurobi_models import get_installation, gurobi_multi_flow, gurobi_single_flow
 from filelock import FileLock, FileLockException
 
 
@@ -84,13 +84,19 @@ def run_gurobi_optimizer(serialized_instance:str,
     return results
 
 
-def process_instance(kcmc_k:int, kcmc_m:int, time_limit:int, threads:int, serialized_instance:str) -> (str, str):
+def process_instance(kcmc_k:int, kcmc_m:int, time_limit:int, threads:int, serialized_instance:str, model_factory='multi') -> (str, str):
+
+    if isinstance(model_factory, str):
+        model_factory = {
+            'multi': gurobi_multi_flow, 'multi_flow': gurobi_multi_flow, 'multiflow': gurobi_multi_flow,
+            'single': gurobi_single_flow, 'single_flow': gurobi_single_flow, 'singleflow': gurobi_single_flow
+        }[model_factory]
 
     # Parse the KEY of the instance
     KEY = '_'.join(serialized_instance.split(';', 4)[:4])
 
     # Check if the LOG file already exists. If so, skip.
-    RESULTS_KEY = f'/home/gurobi/results/{KEY}'
+    RESULTS_KEY = f'/home/gurobi/results/{KEY}'+('.multi' if model_factory == gurobi_multi_flow else '.single')
     if os.path.exists(RESULTS_KEY+'.json'): exit(0)
 
     # Start the logger
@@ -99,7 +105,8 @@ def process_instance(kcmc_k:int, kcmc_m:int, time_limit:int, threads:int, serial
 
     # Run the main execution, logging possible errors
     try:
-        results = run_gurobi_optimizer(serialized_instance, kcmc_k, kcmc_m, time_limit, threads, log, LOGFILE=RESULTS_KEY+'.log')
+        results = run_gurobi_optimizer(serialized_instance, kcmc_k, kcmc_m, time_limit, threads, log,
+                                       LOGFILE=RESULTS_KEY+'.log', model_factory=model_factory)
 
         # Save the results on disk and exit with success
         with open(RESULTS_KEY+'.json', 'w') as fout:
@@ -119,20 +126,15 @@ if __name__ == '__main__':
 
     # Set the arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("input_csv_file", help="CSV file full of KCMC Instances")
-    parser.add_argument("kcmc_k", type=int, help="KCMC K value to evaluate")
-    parser.add_argument("kcmc_m", type=int, help="KCMC M value to evaluate")
-    parser.add_argument('-l', '--limit', type=int, help='Time limit', default=60)
-    parser.add_argument('-t', '--threads', type=int, help='Number of threads to use in the current gurobi process', default=1)
+    parser.add_argument("input_csv_file", help="CSV file full of KCMC Instances, each with its values to K and M")
+    parser.add_argument('-l', '--limit', type=int, help='Time limit', default=3600)
+    parser.add_argument('-t', '--threads', type=int, help='Number of threads to use in gurobi process', default=1)
     args, unknown_args = parser.parse_known_args()
 
     # Parse the arguments
     input_csv_file = str(args.input_csv_file.strip())
     time_limit = float(str(args.limit))
     threads = int(float(str(args.threads)))
-    kcmc_k = int(float(str(args.kcmc_k)))
-    kcmc_m = int(float(str(args.kcmc_m)))
-    assert kcmc_k >= kcmc_m, 'KCMC K MUST BE NO SMALLER THAN KCMC M!'
     assert os.path.exists(input_csv_file), f'INPUT CSV FILE {input_csv_file} DOES NOT EXISTS!'
     processed_instances = set()
 
@@ -140,55 +142,55 @@ if __name__ == '__main__':
     with open(input_csv_file, 'r') as input_file:
         for line_no, serialized_instance in enumerate(input_file):
 
-            # Get the serialized instance
-            s_line = serialized_instance.strip().split(',')[0].strip()
-            serialized_instance = s_line.split('\t')[0].strip().upper()
+            # Get the instance and the values for K and M
+            serialized_instance, kcmc = map(lambda l: l.strip().upper(), serialized_instance.strip().split('|'))
             if not serialized_instance.startswith('KCMC'): continue  # Only valid lines. Skip the rest
-
-            # Check if the instance is pre-certified
-            precert = s_line.split('\t')[-1].strip().upper() if (('\t' in s_line) and (s_line.endswith(')'))) else None
-            if precert is not None:
-                if f'(K{kcmc_k}M{kcmc_m})' != precert:
-                    continue
+            kcmc_k = int(kcmc.split('K')[-1].split('M')[0])
+            kcmc_m = int(kcmc.split('M')[-1].split(')')[0])
+            assert kcmc_k >= kcmc_m, 'KCMC K MUST BE NO SMALLER THAN KCMC M!'
 
             # Parse the KEY of the instance
             KEY = '_'.join(serialized_instance.split(';', 4)[:4])
 
-            # Check if the RESULTS file already exists. If so, skip.
-            RESULTS_KEY = f'/home/gurobi/results/{KEY}'
-            if os.path.exists(RESULTS_KEY+'.json'): continue
+            # Since we have two variations of the gurobi optimizer formulation, we test with both
+            for suffix, factory in [('.single', gurobi_single_flow), ('.multi', gurobi_multi_flow)]:
 
-            # If we do manage to acquire the LOCK to the results key:
-            try:
-                if serialized_instance in processed_instances: continue
-                processed_instances.add(serialized_instance)
-                with FileLock(RESULTS_KEY+'.log', timeout=None, delay=None):
+                # Check if the RESULTS file already exists. If so, skip.
+                RESULTS_KEY = f'/home/gurobi/results/{KEY}{suffix}'
+                if os.path.exists(RESULTS_KEY+'.json'): continue
 
-                    # Start the logger
-                    logging.basicConfig(filename=RESULTS_KEY+'.log', level=logging.DEBUG)
-                    def log(logstring): logging.info(KEY+':::'+logstring)
+                # If we do manage to acquire the LOCK to the results key:
+                try:
+                    if serialized_instance in processed_instances: continue
+                    processed_instances.add(serialized_instance)
+                    with FileLock(RESULTS_KEY+'.log', timeout=None, delay=None):
 
+                        # Start the logger
+                        logging.basicConfig(filename=RESULTS_KEY+'.log', level=logging.DEBUG)
+                        def log(logstring): logging.info(KEY+suffix+':::'+logstring)
 
-                    # Run the main execution, logging possible errors
-                    try:
-                        results = run_gurobi_optimizer(serialized_instance, kcmc_k, kcmc_m, time_limit,
-                                                       threads, log, LOGFILE=RESULTS_KEY+'.log')
+                        # Run the main execution, logging possible errors
+                        try:
+                            results = run_gurobi_optimizer(serialized_instance, kcmc_k, kcmc_m, time_limit,
+                                                           threads, log, LOGFILE=RESULTS_KEY+'.log',
+                                                           model_factory=factory)
+                            results['gurobi_model_type'] = suffix[1:]+'_flow'
 
-                        # Save the results on disk and exit with success
-                        with open(RESULTS_KEY+'.json', 'w') as fout:
-                            json.dump(results, fout, indent=2)
+                            # Save the results on disk and exit with success
+                            with open(RESULTS_KEY+'.json', 'w') as fout:
+                                json.dump(results, fout, indent=2)
 
-                        # Printout the result status
-                        result = '{}\t{} {}'.format(line_no, KEY, results['status'])
-                    except Exception as exp:
-                        with open(RESULTS_KEY+'.err', 'a') as fout:
-                            fout.write(f'KEY {KEY} AT {datetime.now()}\nERROR - {exp}\n{traceback.format_exc()}\n\n')
+                            # Printout the result status
+                            result = '{}\t{} {} {}'.format(line_no, KEY, results['status'], results['mip_gap'])
+                        except Exception as exp:
+                            with open(RESULTS_KEY+'.err', 'a') as fout:
+                                fout.write(f'KEY {KEY+suffix} AT {datetime.now()}\nERROR - {exp}\n{traceback.format_exc()}\n\n')
 
-                        # Printout the error
-                        result = '{}\t{} {}'.format(line_no, KEY, 'ERROR: '+str(exp))
+                            # Printout the error
+                            result = '{}\t{} {}'.format(line_no, KEY+suffix, 'ERROR: '+str(exp))
 
-                    with open('/home/gurobi/results/STATE.log', 'a') as fout:
-                        fout.write(f'{datetime.now()} {result}\n')
+                        with open('/home/gurobi/results/STATE.log', 'a') as fout:
+                            fout.write(f'{datetime.now()} {result}\n')
 
-            # Locking exception
-            except FileLockException: continue  # If we did not got the lock, skip this key.
+                # Locking exception
+                except FileLockException: continue  # If we did not got the lock, skip this key.

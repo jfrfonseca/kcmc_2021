@@ -140,7 +140,6 @@ if __name__ == '__main__':
     time_limit = float(str(args.limit))
     threads = int(float(str(args.threads)))
     assert os.path.exists(input_csv_file), f'INPUT CSV FILE {input_csv_file} DOES NOT EXISTS!'
-    processed_instances = set()
 
     # For each line in the input file (assuming there is no header)
     with open(input_csv_file, 'r') as input_file:
@@ -152,9 +151,6 @@ if __name__ == '__main__':
             kcmc_k = int(kcmc.split('K')[-1].split('M')[0])
             kcmc_m = int(kcmc.split('M')[-1].split(')')[0])
             assert kcmc_k >= kcmc_m, 'KCMC K MUST BE NO SMALLER THAN KCMC M!'
-
-            if serialized_instance in processed_instances: continue
-            processed_instances.add(serialized_instance)
 
             # Parse the KEY of the instance
             KEY = '_'.join(serialized_instance.split(';', 4)[:4])

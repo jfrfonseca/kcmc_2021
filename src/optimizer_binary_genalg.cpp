@@ -90,8 +90,11 @@ int genalg_binary(
         chromo_size = wsn->num_sensors,
         population[pop_size][chromo_size];
     double best_fitness_ever = WORST_FITNESS, fitness[pop_size];
-    bool SAFE = true;
     std::vector<int> selection;
+
+    // FLAGS
+    bool SAFE = true,
+         ELITISM = true;  // The best individual always stays intact in the next generation
 
     // Prepare an alternate buffer for the population
     // Look, it's C++, OK? Sometimes things like that are necessary
@@ -127,7 +130,7 @@ int genalg_binary(
 
         // For every population position that was *not* selected
         for (i=0; i<pop_size; i++) {
-            if (not isin(selection, i)) {
+            if ((not isin(selection, i)) and ((i != best) or (not ELITISM))) {
 
                 // Choose 2 different individuals among the selected in this generation
                 parent_0 = selection_get_one(sel_size, selection, -1);
@@ -141,7 +144,9 @@ int genalg_binary(
         // For every individual in the population
         for (i=0; i<pop_size; i++) {
             // If this individual got lucky, randomly flip a bit
-            if (((double) rand() / (RAND_MAX)) < mut_rate) {mutation_random_bit_flip(chromo_size, population[i]);}
+            if ((((double) rand() / (RAND_MAX)) < mut_rate) and ((i != best) or (not ELITISM))) {
+                mutation_random_bit_flip(chromo_size, population[i]);
+            }
         }
 
         // If in safe mode, inspect the population once every INSPECTION_FREQUENCY generations

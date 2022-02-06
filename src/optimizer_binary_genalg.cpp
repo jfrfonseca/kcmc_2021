@@ -17,26 +17,50 @@
  * GENETIC ALGORITHM
  * */
 
+/** Fitness Function (MIN)
+ * The best possible fitness has the minimal number of active sensors for the instance to have K-Coverage and
+ * M-Connectivity at the same time.
+ * Valid instances have fitness <= number of sensors.
+ * Invalid instances have fitness that is the number of sensors used summed with a penalty value for each violation
+ * A violation is a POI that has less than K-Coverage of M-Connectivity. The same POI might incur in several violations.
+ * The penalty value in each violation is the product by its severity (i.e. a POI that has 1-Coverage when K=4 has a
+ * violation of severity 3), the total number of sensors in the instance, and the weight of the type of violation (
+ * coverage or connectivity).
+ * Thus, the worst theorical maximal fitness is NUM_SENSORS + (((K*w_k*NUM_SENSORS) + (M*w_m*NUM_SENSORS)) * NUM_POIS)
+ * @param wsn
+ * @param K
+ * @param M
+ * @param weight_k
+ * @param weight_m
+ * @param chromo
+ * @return
+ */
+double fitness_binary(KCMC_Instance *wsn, int K, int M, double weight_k, double weight_m, int *chromo) {
 
-double fitness_binary(KCMC_Instance *wsn, int K, int M, double w_valid, double w_invalid, int *chromo) {
+    // Define reused buffers
+    int i, severity;
+    double fitness;
 
-    // Format the chromossome as an unordered set of unused sensor installation spots,
-    // and get another unordered set of ints for storing the used sensors
-    std::unordered_set<int> inactive_sensors, all_used_sensors;
-    for (int i=0; i<wsn->num_sensors; i++) {
-        if (chromo[i] == 0) {
-            inactive_sensors.insert(i);
-        }
+    // Get the set of inactive sensors, the coverage and connectivity array at each POI
+    std::unordered_set<int> inactive_sensors;
+    setify(inactive_sensors, wsn->num_sensors, chromo, 0);
+
+    // Compute the starting fitness as the number of active sensors
+    fitness = (double)(wsn->num_pois - inactive_sensors.size());
+
+    // Get the coverage and connectivity at each POI
+    int coverage[wsn->num_pois], connectivity[wsn->num_pois];
+    wsn->get_coverage(coverage, inactive_sensors);
+    wsn->get_connectivity(connectivity, inactive_sensors, M);
+
+    // Compute the penalties on validity violations and return the total fitness
+    for (i=0; i<wsn->num_pois; i++) {
+        severity = K-coverage[i];  // Get the severity of the Coverage violation. 0 or less do not incur in penalties
+        if (severity > 0) {fitness += (severity*weight_k*wsn->num_sensors);}
+        severity = M-connectivity[i];  // Get the severity of the Connectivity violation. 0 or less do not incur in penalties
+        if (severity > 0) {fitness += (severity*weight_m*wsn->num_sensors);}
     }
-    double unused_fraction = (double)(inactive_sensors.size()) / (double)(wsn->num_sensors);
-
-    // Check the validity of the instance with the inactive sensors
-    if (wsn->fast_k_coverage(K, inactive_sensors) == -1) {
-        if (wsn->fast_m_connectivity(M, inactive_sensors, &all_used_sensors) == -1) {
-            return unused_fraction * w_valid;
-        }
-    }
-    return unused_fraction * w_invalid;
+    return fitness;
 }
 
 
@@ -51,23 +75,23 @@ double fitness_binary(KCMC_Instance *wsn, int K, int M, double w_valid, double w
  * @param wsn             KCMC WSN Instance
  * @param K               KCMC K
  * @param M               KCMC M
- * @param w_valid         Maximum fitness for valid solutions
- * @param w_invalid       Maximum fitness for invalid solutions
+ * @param w_coverage      Weight of the penalty on coverage violations
+ * @param w_connectivity  Weight of the penalty on connectivity violations
  * @return
  */
 int genalg_binary(
     std::unordered_set<int> *unused_sensors,
-    int print_best, int max_generations, int pop_size, int sel_size, float mut_rate, float one_bias,
+    int print_interval, int max_generations, int pop_size, int sel_size, float mut_rate, float one_bias,
     KCMC_Instance *wsn, int K, int M,
     double w_valid, double w_invalid
 ) {
     // Prepare buffers
-    int i, local_best, local_worst, num_generation, parent_0, parent_1, chromo_size = wsn->num_sensors;
-    int population[pop_size][chromo_size], local_optima[chromo_size];
-    double fitness[pop_size], best_fitness = 0.0, local_optima_fitness;
-    std::unordered_set<int> local_optima_used_sensors;
-    std::vector<int> selection;
+    int i, best, num_generation, parent_0, parent_1,
+        chromo_size = wsn->num_sensors,
+        population[pop_size][chromo_size];
+    double best_fitness_ever = WORST_FITNESS, fitness[pop_size];
     bool SAFE = true;
+    std::vector<int> selection;
 
     // Prepare an alternate buffer for the population
     // Look, it's C++, OK? Sometimes things like that are necessary
@@ -75,9 +99,7 @@ int genalg_binary(
     if (SAFE) {for (size_t j = 0; j<pop_size; j++) {pop[j] = population[j];}}
 
     // Generate a random population
-    for (i=0; i<pop_size; i++) {
-        individual_creation(one_bias, chromo_size, population[i]);
-    }
+    for (i=0; i<pop_size; i++) {individual_creation(one_bias, chromo_size, population[i]);}
 
     // Evolve "FOREVER". THE OS IS SUPPOSED TO HANDLE TIMEOUTS!
     // This software assumes that the OS will handle timeouts, thus avoiding
@@ -86,40 +108,18 @@ int genalg_binary(
     // The software will handle gracefully OS signals SIGINT, SIGALRM, SIGABRT and SIGTERM
     for (num_generation=0; num_generation<max_generations+1; num_generation++) {
 
-        // Evaluate the population
+        // Evaluate the population and find the best
         for (i=0; i<pop_size; i++) {fitness[i] = fitness_binary(wsn, K, M, w_valid, w_invalid, population[i]);}
+        best = ((int)(std::min_element(fitness, fitness + pop_size) - fitness));
 
-        // Print the best individual, that will be stored in the unused_sensors set.
-        local_best = get_best_individual(
-            print_best,
-            unused_sensors,
-            chromo_size,
-            pop_size,
-            pop,
-            fitness,
-            num_generation,
-            best_fitness
-        );
-
-        // If the local best individual has a higher fitness than the overall best
-        if (fitness[local_best] > best_fitness) {
-
-            // Update the overall best fitness ever found
-            best_fitness = fitness[local_best];
-
-            // Create an idealized version (local optima) of the best individual
-            wsn->local_optima(K, M, *unused_sensors, &local_optima_used_sensors);
-            for (i=0; i<chromo_size; i++) {local_optima[i] = isin(local_optima_used_sensors, i) ? 1: 0;}
-
-            // Replace the worst fitted individual with the local optima, and recompute its fitness
-            local_worst = ((int)(std::min_element(fitness, fitness + pop_size) - fitness));
-            for (i=0; i<chromo_size; i++) {population[local_worst][i] = local_optima[i];}
-            fitness[local_worst] = fitness_binary(wsn, K, M, w_valid, w_invalid, local_optima);
-
-            // Printout the local optima
-            // The local_worst position is now the location of the local optima!
-            //  To avoid reprinting the header, there is this dirty trick at the num_generation parameter
-            printout(((num_generation > 0) ? num_generation : 1), chromo_size, local_optima, fitness[local_worst]);
+        // Print the best individual in the population
+        // Print only if the current best is the best ever found,
+        // or if we have run the appropriate interval of generations.
+        // Update the best fitness ever in that case, and the result set of unused sensors
+        if (((num_generation % print_interval) == 0) | (fitness[best] < best_fitness_ever)) {
+            printout(num_generation, chromo_size, population[best], fitness[best]);
+            best_fitness_ever = fitness[best];
+            setify(*unused_sensors, chromo_size, population[best], 0);
         }
 
         // Select individuals for next generation
@@ -140,21 +140,12 @@ int genalg_binary(
 
         // For every individual in the population
         for (i=0; i<pop_size; i++) {
-            // If this individual got lucky,
-            if (((double) rand() / (RAND_MAX)) < mut_rate) {
-                // If it is likely to be a VALID individual, flip a random one to a zero
-                if (fitness[i] > w_invalid) {
-                    mutation_random_reset(chromo_size, population[i]);
-                // if not, flip a zero to a one
-                } else {
-                    mutation_random_set(chromo_size, population[i]);
-                }
-                // mutation_random_bit_flip(chromo_size, population[i]);
-            }
+            // If this individual got lucky, randomly flip a bit
+            if (((double) rand() / (RAND_MAX)) < mut_rate) {mutation_random_bit_flip(chromo_size, population[i]);}
         }
 
-        // If in safe mode, inspect the population once every 10 generations
-        if (SAFE & ((num_generation % 10) == 0)) {inspect_population(pop_size, wsn->num_sensors, pop);}
+        // If in safe mode, inspect the population once every INSPECTION_FREQUENCY generations
+        if (SAFE & ((num_generation % INSPECTION_FREQUENCY) == 0)) {inspect_population(pop_size, wsn->num_sensors, pop);}
     }
     std::cerr << " Reached HARD-LIMIT OF GENERATIONS (" << num_generation-1 << "). Exiting gracefully..." << std::endl;
     return num_generation;

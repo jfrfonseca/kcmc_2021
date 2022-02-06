@@ -46,7 +46,7 @@ void printout(int num_generation, int chromo_size, int *individual, double fitne
         << "\t" << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
         << "\t" << std::setfill('0') << std::setw(5) << num_used
         << "\t" << std::fixed << std::setprecision(3) << ((double)(chromo_size - num_used)) / ((double)chromo_size)
-        << "\t" << std::fixed << std::setprecision(3) << fitness
+        << "\t" << std::setfill(' ') << std::setw(7) << std::fixed << std::setprecision(1) << fitness
         << "\t";
     for (int i=0; i<chromo_size; i++) {out << individual[i];}
     // Flush

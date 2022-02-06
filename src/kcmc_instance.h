@@ -17,6 +17,8 @@
 #define tPOI 0
 #define tSENSOR 1
 #define tSINK 2
+#define INSPECTION_FREQUENCY 25
+#define WORST_FITNESS 999999999
 
 
 /** NODE
@@ -62,6 +64,12 @@ std::unordered_set<int> set_diff(const std::unordered_set<int> &left, const std:
  */
 template<class T>
 T set_merge (T a, T b) {T t(a); t.insert(b.begin(),b.end()); return t;}
+
+
+/* SETIFY
+ * Returns a set from other data structure
+ */
+void setify(std::unordered_set<int> &target, int size, int source[], int reference);
 
 
 /** KCMC Instance

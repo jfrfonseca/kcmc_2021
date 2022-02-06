@@ -13,6 +13,11 @@
 #include "kcmc_instance.h"  // KCMC Instance class headers
 
 
+void setify(std::unordered_set<int> &target, int size, int source[], int reference) {
+    target.clear();
+    for (int i=0; i<size; i++) {if (source[i] == reference) {target.insert(i);}}
+}
+
 /* #####################################################################################################################
  * KCMC-PROBLEM PAYLOAD METHODS
  */

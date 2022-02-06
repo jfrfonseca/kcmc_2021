@@ -130,6 +130,7 @@ if __name__ == '__main__':
     parser.add_argument("input_csv_file", help="CSV file full of KCMC Instances, each with its values to K and M")
     parser.add_argument('-l', '--limit', type=int, help='Time limit', default=3600)
     parser.add_argument('-t', '--threads', type=int, help='Number of threads to use in gurobi process', default=1)
+    parser.add_argument('--skip_multi', action='store_true', help='If the multiflow variations should be skipped')
     args, unknown_args = parser.parse_known_args()
 
     # Get the name of the STATE file. Added random number to improve thread-safety!
@@ -157,6 +158,7 @@ if __name__ == '__main__':
 
             # Since we have two variations of the gurobi optimizer formulation, we test with both
             for MODEL_TYPE, factory in [('.single', gurobi_single_flow), ('.multi', gurobi_multi_flow)]:
+                if args.skip_multi and (MODEL_TYPE == '.multi'): continue
 
                 # Check if the RESULTS file already exists. If so, skip.
                 RESULTS_KEY = f'/home/gurobi/results/{KEY}{MODEL_TYPE}'

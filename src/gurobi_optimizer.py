@@ -9,6 +9,7 @@ import os.path
 import logging
 import argparse
 import traceback
+from os import getpid
 from datetime import datetime
 
 # This package
@@ -131,6 +132,9 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--threads', type=int, help='Number of threads to use in gurobi process', default=1)
     args, unknown_args = parser.parse_known_args()
 
+    # Get one STATEFILE for each PID
+    STATEFILE = f'/home/gurobi/results/STATE.{getpid()}.log'
+
     # Parse the arguments
     input_csv_file = str(args.input_csv_file.strip())
     time_limit = float(str(args.limit))
@@ -189,7 +193,7 @@ if __name__ == '__main__':
                             # Printout the error
                             result = '{}\t{} {}'.format(line_no, KEY+suffix, 'ERROR: '+str(exp))
 
-                        with open('/home/gurobi/results/STATE.log', 'a') as fout:
+                        with open(STATEFILE, 'a') as fout:
                             fout.write(f'{datetime.now()} {result}\n')
 
                 # Locking exception

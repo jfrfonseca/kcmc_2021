@@ -100,11 +100,13 @@ class GurobiModelWrapper(object):
             'gurobi_runtime': self.model.Runtime,
             'status_code': self.model.Status,
             'status': STATUS.split(' ')[0],
+            'mip_gap': self.model.MIPGap,
             'gurobi_model_fingerprint': str(self.model.Fingerprint),
             'binary_variables': self.model.NumBinVars,
             'solutions_count': self.model.SolCount,
             'node_count': self.model.NodeCount,
-            'simplex_iterations_count': self.model.IterCount
+            'simplex_iterations_count': self.model.IterCount,
+            'json_solution': self.model.getJSONSolution()
         }
 
         return self.results.copy()

@@ -181,7 +181,7 @@ if __name__ == '__main__':
                                 json.dump(results, fout, indent=2)
 
                             # Printout the result status
-                            result = '{}\t{} {} {}'.format(line_no, KEY, results['status'], results['mip_gap'])
+                            result = '{}\t{} {} {}'.format(line_no, KEY+suffix, results['status'], results['mip_gap'])
                         except Exception as exp:
                             with open(RESULTS_KEY+'.err', 'a') as fout:
                                 fout.write(f'KEY {KEY+suffix} AT {datetime.now()}\nERROR - {exp}\n{traceback.format_exc()}\n\n')

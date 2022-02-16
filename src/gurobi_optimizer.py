@@ -19,7 +19,7 @@ from dynamodb_lock import DynamoDBLockClient, DynamoDBLockError
 
 # Payload packages
 from kcmc_instance import KCMC_Instance
-from gurobi_models import gurobi_multi_flow, gurobi_single_flow
+from gurobi_models import gurobi_multi_flow, gurobi_single_flow, GurobiModelWrapper
 
 # Constants
 LOCK_TABLE = 'lock_kcmc_instance'
@@ -171,7 +171,7 @@ if __name__ == '__main__':
     # While there are instances to acquire
     lock, instance, instances_queue = acquire_instance(table, lock_client, instances_queue)
     while lock is not None:
-        serialized_instance = instance['serial']
+        serialized_instance = GurobiModelWrapper.decompress(instance['serial'])
         kcmc_k = int(instance['K'])
         kcmc_m = int(instance['M'])
         assert kcmc_k >= kcmc_m, 'KCMC K MUST BE NO SMALLER THAN KCMC M!'

@@ -14,6 +14,7 @@ from dynamodb_lock import DynamoDBLockClient
 
 # Payload packages
 from gurobi_optimizer import INSTANCE_TABLE, LOCK_TABLE, LOCAL_URI
+from gurobi_models import GurobiModelWrapper
 
 
 # ######################################################################################################################
@@ -50,43 +51,15 @@ if __name__ == '__main__':
             'K': k, 'M': m, 'seed': seed,
             'pois': pois, 'sensors': sensors, 'sinks': sinks,
             'area': area, 'coverage': coverage, 'communication': communication,
-            'serial': serial.strip(),
+            'serial': GurobiModelWrapper.compress(serial.strip()),
             'queued': True
         })
 
     # Put the instances into the tables
     for namespace, dynamo, dynamo_cli in [
-        ('LOCAL', boto3.resource('dynamodb', endpoint_url=LOCAL_URI), boto3.client('dynamodb', endpoint_url=LOCAL_URI)),
-        ('CLOUD', boto3.resource('dynamodb'), boto3.client('dynamodb'))
+        ('CLOUD', boto3.resource('dynamodb'), boto3.client('dynamodb')),
+        ('LOCAL', boto3.resource('dynamodb', endpoint_url=LOCAL_URI), boto3.client('dynamodb', endpoint_url=LOCAL_URI))
     ]:
-
-        # Assert the table
-        try:
-            dynamo.create_table(
-                TableName=INSTANCE_TABLE,
-                KeySchema=[{'AttributeName': 'instance_key', 'KeyType': 'HASH'}],
-                AttributeDefinitions=[{'AttributeName': 'instance_key', 'AttributeType': 'S'}],
-                ProvisionedThroughput={'ReadCapacityUnits': DynamoDBLockClient._DEFAULT_READ_CAPACITY,
-                                       'WriteCapacityUnits': DynamoDBLockClient._DEFAULT_WRITE_CAPACITY},
-            )
-            print(f'CRATED TABLE {INSTANCE_TABLE} IN DYNAMODB {namespace}')
-        except Exception as exp:
-            if 'preexisting table' in str(exp).lower(): pass
-            elif 'the security token included in the request is invalid' in str(exp).lower(): continue
-            else: raise exp
-
-        # Insert the data
-        print(f'INSERTING {len(data)} ITEMS INTO DYNAMODB {namespace}')
-        table = dynamo.Table(INSTANCE_TABLE)
-        qtd_inserted = 0
-        for item in data:
-            try:
-                table.put_item(Item=item, ConditionExpression='attribute_not_exists(instance_key)')
-                qtd_inserted += 1
-            except Exception as exp:
-                if 'conditional request failed' in str(exp).lower(): pass
-                else: raise exp
-        print(f'DONE INSERTING {qtd_inserted} ITEMS IN DYNAMODB {namespace}')
 
         # Clear the lock table, if exists
         if args.release_locks:
@@ -94,7 +67,37 @@ if __name__ == '__main__':
                 dynamo.Table(LOCK_TABLE).delete()
                 print(f'ALL LOCKS RELEASED FROM TABLE {LOCK_TABLE} IN DYNAMODB '+namespace)
             except Exception as exp:
-                raise exp
+                if 'requested resource not found' in str(exp).lower(): pass
+                elif 'non-existent table' in str(exp).lower(): pass
+                else: raise exp
+
+        # Assert the table
+        try:
+            table = dynamo.create_table(
+                TableName=INSTANCE_TABLE,
+                KeySchema=[{'AttributeName': 'instance_key', 'KeyType': 'HASH'}],
+                AttributeDefinitions=[{'AttributeName': 'instance_key', 'AttributeType': 'S'}],
+                ProvisionedThroughput={'ReadCapacityUnits': DynamoDBLockClient._DEFAULT_READ_CAPACITY,
+                                       'WriteCapacityUnits': DynamoDBLockClient._DEFAULT_WRITE_CAPACITY},
+            )
+            print(f'CREATING TABLE {INSTANCE_TABLE} IN DYNAMODB {namespace}...')
+            table.wait_until_exists()
+            print(f'...DONE!')
+        except Exception as exp:
+            if 'preexisting table' in str(exp).lower(): pass
+            elif 'table already exists' in str(exp).lower(): pass
+            elif 'the security token included in the request is invalid' in str(exp).lower(): continue
+            else: raise exp
+
+        # Insert the data
+        print(f'INSERTING {len(data)} ITEMS INTO DYNAMODB {namespace}')
+        table = dynamo.Table(INSTANCE_TABLE)
+        qtd_inserted = 0
+        with table.batch_writer() as batch:
+            for item in data:
+                table.put_item(Item=item)
+                qtd_inserted += 1
+        print(f'DONE INSERTING {qtd_inserted} ITEMS IN DYNAMODB {namespace}')
 
         # Assert the existence of the locking table
         lock_client = DynamoDBLockClient(dynamo, table_name=LOCK_TABLE)

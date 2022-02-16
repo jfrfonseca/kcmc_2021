@@ -6,8 +6,9 @@ Gurobi Optimizer Driver Script
 # STDLib
 import json
 import argparse
+import os
 from typing import Any
-from os import unlink, environ
+from os import unlink, makedirs
 from datetime import timedelta
 
 # PIP
@@ -122,6 +123,7 @@ def get_update_params(body, stringfy=True):
 if __name__ == '__main__':
 
     print('SETTING UP...')
+    makedirs('/tmp/dynamodb_objects')
 
     # Set the arguments
     parser = argparse.ArgumentParser()

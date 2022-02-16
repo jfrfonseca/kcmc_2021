@@ -82,6 +82,24 @@ services:
       mode: replicated
       replicas: 2
 
+  gurobi:
+    profiles:
+      - gurobi
+    build:
+      dockerfile: gurobi.dockerfile
+      context: .
+    command: "python -u /home/gurobi/src/gurobi_optimizer.py -l 3600 -t 1"
+    environment:
+      GRB_CLIENT_LOG: 3
+      PYTHONPATH: "/home/gurobi/src"
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: 'YOUR_ACCESS_KEY_ID_HERE'
+      AWS_SECRET_ACCESS_KEY: 'YOUR_SECRET_ACCESS_KEY_HERE'
+    volumes:
+      - ./data/kcmc_gurobi.lic:/opt/gurobi/gurobi.lic:ro
+      - ./data:/data:ro
+      - ./src:/home/gurobi/src:ro
+
   notebook:
     profiles:
       - notebook

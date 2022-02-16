@@ -209,10 +209,10 @@ if __name__ == '__main__':
 
             # Send the value to S3
             try:
-                s3_target = f"s3://{args.bucket}/dynamodb_objects/"+(local_file.split('/')[-1])
+                s3_target = "dynamodb_objects/"+(local_file.split('/')[-1])
                 s3_client = boto3.client('s3')
                 response = s3_client.upload_file(local_file, args.bucket, s3_target)
-                results['results'] = s3_target
+                results['results'] = f"s3://{args.bucket}/{s3_target}"
             except Exception as exp:
                 if 'the aws access key id you provided does not exist in our records' in str(exp).lower(): pass
                 else: raise exp

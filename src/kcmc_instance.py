@@ -3,7 +3,6 @@ KCMC_Instance Object
 """
 
 
-from filelock import FileLock
 from typing import List, Set, Tuple, Dict
 try:
     import igraph
@@ -332,47 +331,3 @@ def parse_block(df):
     ).reset_index(drop=True)
 
     return df
-
-
-def parse_key(instance_key):
-    key = instance_key.replace('INSTANCE', 'KCMC').replace(':', '_')
-    if os.path.exists(sys.argv[1] + '/' + key + '.pq'):
-        return key, -1
-
-    # If we have to reprocess, start our own redis connection and extract the data
-    df = []
-    redis = StrictRedis(sys.argv[3], decode_responses=True)
-    for random_seed, instance in redis.hscan_iter(instance_key):
-        df.append({'instance': instance})
-    redis.close()
-
-    # With the connection closed, parse and save the data
-    df = pd.DataFrame(df)[['instance']]
-    if '--no-parsing' not in sys.argv:
-        df = parse_block(df)
-    target = sys.argv[1]
-    if target.endswith('.parquet'):
-        df.drop(columns=['obj_instance']).copy().to_parquet(target + f'/{key}.pq')
-    else:
-        with FileLock(target, timeout=30, delay=0.2):
-            df.to_csv(target, mode='a', header=False, index=None)
-
-    return key, len(df)
-
-
-if __name__ == "__main__":
-
-    import sys, os, multiprocessing
-    import pandas as pd
-    from redis import StrictRedis
-
-    redis = StrictRedis(sys.argv[3], decode_responses=True)
-    list_keys = list(redis.scan_iter('INSTANCE:*'))
-    redis.close()
-
-    # Parse the REDIS data as a DataFrame
-    pool = multiprocessing.Pool(int(sys.argv[2]))
-    for num, pair in enumerate(pool.imap_unordered(parse_key, list_keys)):
-        key, qtd = pair
-        print(round(num / len(list_keys), 3), '\t', qtd, '\t', key)
-    pool.close()

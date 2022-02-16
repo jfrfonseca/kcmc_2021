@@ -4,6 +4,8 @@ GUROBI Single-Flow and Multi-Flow ILP Model Objects Factory
 
 
 import time
+import zlib
+import base64
 from typing import Any
 
 import gurobipy as gp
@@ -57,6 +59,7 @@ class GurobiModelWrapper(object):
         self.kcmc_instance = kcmc_instance
 
         # Prepare the base params of the model
+        self.model_setup_start = time.time_ns()
         model = gp.Model(self.name)
 
         # Set the Time Limit and the Thread Count
@@ -67,19 +70,38 @@ class GurobiModelWrapper(object):
         if LOGFILE is not None: model.setParam(GRB.Param.LogFile, LOGFILE)
         model.setParam(GRB.Param.OutputFlag, 1)
         model.setParam(GRB.Param.LogToConsole, 0)
+        self.model_setup_end = time.time_ns()
 
         # Copy the model locally
         self.model = model
         self.results = None
         self.constraints = {}
+        self.solution_variables = {}
+        self.vars_setup_time = {}
+        self.constraints_setup_time = {}
 
     # Configuration Service Wrapers
-    def add_vars(self, *args, **kwargs): return self.model.addVars(*args, **kwargs)
+    def add_vars(self, *args, **kwargs):
+        start = time.time_ns()
+        var = self.model.addVars(*args, **kwargs)
+        self.vars_setup_time[kwargs['name']] = (start, time.time_ns())
+        self.solution_variables[kwargs['name']] = var
+        return var
     def set_objective(self, *args, **kwargs): return self.model.setObjective(*args, **kwargs)
     def add_constraints(self, *args, name:str, **kwargs):
+        start = time.time_ns()
         constr = self.model.addConstrs(*args, name=name, **kwargs)
+        self.constraints_setup_time[name] = (start, time.time_ns())
         self.constraints[name] = constr
         return constr
+
+    @staticmethod
+    def compress(str_input:str) -> str:
+        return base64.b64encode(zlib.compress(str_input.encode('utf-8'))).decode('ascii')
+
+    @staticmethod
+    def decompress(str_input):
+        return zlib.decompress(base64.b64decode(str_input.encode('ascii'))).decode('utf-8')
 
     # Results Wrapper
     def optimize(self):
@@ -96,7 +118,14 @@ class GurobiModelWrapper(object):
         # Store some metadata
         STATUS = GUROBI_STATUS_TRANSLATE.get(self.model.Status, f'ERROR ({self.model.Status})')
         self.results = {
-            'time': self.optimization_end - self.optimization_start,
+            'time': {
+                'setup': {
+                    'model': (self.model_setup_start, self.model_setup_end),
+                    'constraints': self.constraints_setup_time,
+                    'vars': self.vars_setup_time,
+                },
+                'wall': (self.optimization_start, self.optimization_end),
+            },
             'gurobi_runtime': self.model.Runtime,
             'status_code': self.model.Status,
             'status': STATUS.split(' ')[0],
@@ -106,7 +135,13 @@ class GurobiModelWrapper(object):
             'solutions_count': self.model.SolCount,
             'node_count': self.model.NodeCount,
             'simplex_iterations_count': self.model.IterCount,
-            'json_solution': self.model.getJSONSolution()
+            'json_solution': self.model.getJSONSolution(),
+            'variables': {
+                name: {str(k): (v.X if self.model.SolCount > 0
+                                    else (v.Xn[0] if hasattr(v, 'Xn') else None))
+                       for k,v in var.items()}
+                for name, var in self.solution_variables.items()
+            }
         }
 
         return self.results.copy()

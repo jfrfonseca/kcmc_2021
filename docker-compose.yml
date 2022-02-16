@@ -25,19 +25,59 @@ services:
       - ./data:/data:rw
       - ./src:/src:ro
 
-  gurobi:
+  dynamodb-local:
     profiles:
-      - gurobi
-    image: gurobi/python:9.1.2
-    command: "python -u /home/gurobi/src/gurobi_optimizer.py /data/instances.csv -l 3600 -t 1"
+      - pump
+      - gurobi-local
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data"
+    image: "amazon/dynamodb-local:latest"
+    container_name: dynamodb-local
+    ports:
+      - "8000:8000"
+    volumes:
+      - "./data/dynamodb:/home/dynamodblocal/data:rw"
+    working_dir: /home/dynamodblocal
+
+  pump:
+    profiles:
+      - pump
+    build:
+      dockerfile: gurobi.dockerfile
+      context: .
+    command: "python -u /home/gurobi/src/instances_pump.py -i /data/instances.csv --release_locks"
+    environment:
+      PYTHONPATH: "/home/gurobi/src"
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: 'YOUR_ACCESS_KEY_ID_HERE'
+      AWS_SECRET_ACCESS_KEY: 'YOUR_SECRET_ACCESS_KEY_HERE'
+    volumes:
+      - ./data:/data:ro
+      - ./src:/home/gurobi/src:ro
+    depends_on:
+      dynamodb-local:
+        condition: service_started
+
+  gurobi-local:
+    profiles:
+      - gurobi-local
+    build:
+      dockerfile: gurobi.dockerfile
+      context: .
+    command: "python -u /home/gurobi/src/gurobi_optimizer.py -l 5 -t 1 --local_dynamodb"
     environment:
       GRB_CLIENT_LOG: 3
       PYTHONPATH: "/home/gurobi/src"
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: 'YOUR_ACCESS_KEY_ID_HERE'
+      AWS_SECRET_ACCESS_KEY: 'YOUR_SECRET_ACCESS_KEY_HERE'
     volumes:
       - ./data/kcmc_gurobi.lic:/opt/gurobi/gurobi.lic:ro
       - ./data:/data:ro
       - ./src:/home/gurobi/src:ro
-      - ./analysis/results:/home/gurobi/results:rw
+      - ./analysis/results/local_dynamodb_objects:/tmp/dynamodb_objects:rw
+    depends_on:
+      dynamodb-local:
+        condition: service_started
     deploy:
       mode: replicated
       replicas: 2
@@ -74,9 +114,9 @@ services:
 #    volumes:
 #      - ./data:/data:rw
 #
-#  generator_random:
+#  generator-random:
 #    profiles:
-#      - generator_random
+#      - generator-random
 #    depends_on:
 #      - redis
 #    extra_hosts:

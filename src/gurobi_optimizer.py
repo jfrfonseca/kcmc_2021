@@ -5,195 +5,235 @@ Gurobi Optimizer Driver Script
 
 # STDLib
 import json
-import os.path
-import logging
 import argparse
-import traceback
-from random import randint
-from datetime import datetime
+from typing import Any
+from os import unlink, environ
+from datetime import timedelta
 
-# This package
+# PIP
+import boto3
+from boto3.dynamodb.conditions import Key, Attr
+
+# Auxiliary packages
+from dynamodb_lock import DynamoDBLockClient, DynamoDBLockError
+
+# Payload packages
 from kcmc_instance import KCMC_Instance
-from gurobi_models import get_installation, gurobi_multi_flow, gurobi_single_flow
-from filelock import FileLock, FileLockException
+from gurobi_models import gurobi_multi_flow, gurobi_single_flow
+
+# Constants
+LOCK_TABLE = 'lock_kcmc_instance'
+INSTANCE_TABLE = 'kcmc_instance'
+LOCAL_URI = 'http://dynamodb-local:8000'
 
 
 def run_gurobi_optimizer(serialized_instance:str,
                          kcmc_k:int, kcmc_m:int,
                          time_limit:float, threads:int,
-                         log:callable=print, LOGFILE:str=None,
+                         LOGFILE:str=None,
                          model_factory=gurobi_multi_flow) -> dict:
-
-    # Prepare the results metadata object
-    metadata = {'kcmc_k': kcmc_k, 'kcmc_m': kcmc_m, 'time_limit': time_limit, 'threads': threads}
 
     # De-Serialize the instance as a KCMC_Instance object.
     # It MIGHT be multisink and thus incompatible with the ILP formulation
     instance = KCMC_Instance(serialized_instance, False, True, True)
-    log(f'Parsed raw instance of key {instance.key_str}')
-
-    # Add metadata to the result object
-    metadata.update({
-        'key': instance.key_str,
-        'instance': serialized_instance,
-        'pois': instance.num_pois,
-        'sensors': instance.sensors,
-        'sinks': instance.num_sinks,
-        'area_side': instance.area_side,
-        'coverage_radius': instance.sensor_coverage_radius,
-        'communication_radius': instance.sensor_communication_radius,
-        'coverage_density': instance.coverage_density,
-        'communication_density': instance.communication_density
-    })
-
+    print(f'\tParsed raw instance of key {instance.key_str}')
     # WE ASSUME SINGLE-SINK INSTANCES
-    # # Convert the instance to a single-sink version.
-    # # Use M as the MAX_M parameter for minimal impact on performance
-    # instance = maybe_multisink_instance.to_single_sink(MAX_M=kcmc_m)
-    # log('Ensured single-sink instance')
 
     # MODEL SETUP ======================================================================================================
 
     # Build the model and its variables
     model, X, Y = model_factory(kcmc_k, kcmc_m, instance, time_limit, threads, LOGFILE)
-    log('GUROBI Model set up')
+    print('\tGUROBI Model set up')
 
     # MODEL EXECUTION ==================================================================================================
 
     # Run the execution
-    log('STARTING OPTIMIZATION ' + ('*'*38))
+    print('\tSTARTING OPTIMIZATION ' + ('*'*38))
     results = model.optimize()
-    log('OPTIMIZATION DONE ' + ('*'*42))
+    print('\tOPTIMIZATION DONE ' + ('*'*42))
 
     # Store some metadata
-    results.update(metadata)
-    log(f'OPTIMIZATION STATUS: {results["status"]}')
-    log(f'QUANTITY OF SOLUTIONS FOUND: {results["solutions_count"]}')
+    results.update({
+        'time_limit': time_limit, 'threads': threads,
+        'coverage_density': instance.coverage_density,
+        'communication_density': instance.communication_density
+    })
+    print(f'\tOPTIMIZATION STATUS: {results["status"]}')
+    print(f'\tQUANTITY OF SOLUTIONS FOUND: {results["solutions_count"]}')
 
-    # Store the values of X
-    if 'OPTIMAL' in results["status"]:
-        tuplelist, installation = get_installation(X)
-        results['X'] = tuplelist
-        results['installation'] = installation
-
-        # Parse the used spots
-        results['used_spots'] = [s for s, i in results['installation'].items()]
-        # results['raw']['installation'] = {instance.virtual_sinks_dict.get(s, s): t for s, t in results['single_sink']['installation'].items()}  # ASSUME SINGLE SINK
-        # results['raw']['used_spots'] = [s for s, i in results['raw']['installation'].items()]  # ASSUME SINGLE SINK
-
-    log('DONE '+('*'*55))
+    print('\tDONE '+('*'*55))
     return results
-
-
-def process_instance(kcmc_k:int, kcmc_m:int, time_limit:int, threads:int, serialized_instance:str, model_factory='multi') -> (str, str):
-
-    if isinstance(model_factory, str):
-        model_factory = {
-            'multi': gurobi_multi_flow, 'multi_flow': gurobi_multi_flow, 'multiflow': gurobi_multi_flow,
-            'single': gurobi_single_flow, 'single_flow': gurobi_single_flow, 'singleflow': gurobi_single_flow
-        }[model_factory]
-
-    # Parse the KEY of the instance
-    KEY = '_'.join(serialized_instance.split(';', 4)[:4])
-
-    # Check if the LOG file already exists. If so, skip.
-    RESULTS_KEY = f'/home/gurobi/results/{KEY}'+('.multi' if model_factory == gurobi_multi_flow else '.single')
-    if os.path.exists(RESULTS_KEY+'.json'): exit(0)
-
-    # Start the logger
-    logging.basicConfig(filename=RESULTS_KEY+'.log', level=logging.DEBUG)
-    def log(logstring): logging.info(KEY+':::'+logstring)
-
-    # Run the main execution, logging possible errors
-    try:
-        results = run_gurobi_optimizer(serialized_instance, kcmc_k, kcmc_m, time_limit, threads, log,
-                                       LOGFILE=RESULTS_KEY+'.log', model_factory=model_factory)
-
-        # Save the results on disk and exit with success
-        with open(RESULTS_KEY+'.json', 'w') as fout:
-            json.dump(results, fout, indent=2)
-        return KEY, results['status']
-    except Exception as exp:
-        with open(RESULTS_KEY+'.err', 'a') as fout:
-            fout.write(f'KEY {KEY} AT {datetime.now()}\n{traceback.format_tb(exp)}\n\n')
-        return KEY, 'ERROR: '+str(exp)
 
 
 # ######################################################################################################################
 # RUNTIME
 
 
+def acquire_instance(table, lock_client:DynamoDBLockClient, instances_queue:list) -> (Any, dict, set):
+
+    # Check if the queue is done
+    if len(instances_queue) == 0:
+        print('DONE WITH QUEUE')
+        return None, None, []
+
+    # Get the first instance from the list
+    instance_key = instances_queue[0]
+    response = table.query(KeyConditionExpression=Key('instance_key').eq(instance_key), Limit=1)
+    instance = response['Items'][0]
+    if not instance['queued']:
+        print('(UNQUEUED) SKIPPING INSTANCE '+instance['instance_key'])
+        return acquire_instance(table, lock_client, instances_queue[1:])
+    print('TRYING INSTANCE '+instance['instance_key'])
+
+    # Get a lock on the returned instance
+    try:
+        lock = lock_client.acquire_lock(instance['instance_key'],
+                                        retry_timeout=timedelta(seconds=0.15),
+                                        retry_period=timedelta(seconds=0.1))
+
+    # If failed to acquire lock, it means another instance has the lock. Skip the instance and try again
+    except DynamoDBLockError as lkerr:
+        if 'timed out' in str(lkerr).lower():
+
+            # CYCLE LOGIC
+            # print('DELAYING INSTANCE '+instance['instance_key'])
+            # return acquire_instance(table, lock_client, instance_keys_list[1:]+[instance_keys_list[0]])
+
+            # SKIP LOGIC
+            print('(LOCKED) SKIPPING INSTANCE '+instance['instance_key'])
+            return acquire_instance(table, lock_client, instances_queue[1:])
+
+        else: raise lkerr
+
+    # Return the lock and the instance
+    print('GOT LOCK ON INSTANCE '+instance['instance_key'])
+    return lock, instance, instances_queue[1:]
+
+
+def get_update_params(body, stringfy=True):
+    update_expression = ["set "]
+    update_values = {}
+    for key, val in body.items():
+        update_expression.append(f" {key} = :{key},")
+        update_values[f":{key}"] = str(val) if stringfy else val
+    return "".join(update_expression)[:-1], update_values
+
+
 if __name__ == '__main__':
+
+    print('SETTING UP...')
 
     # Set the arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("input_csv_file", help="CSV file full of KCMC Instances, each with its values to K and M")
     parser.add_argument('-l', '--limit', type=int, help='Time limit', default=3600)
     parser.add_argument('-t', '--threads', type=int, help='Number of threads to use in gurobi process', default=1)
     parser.add_argument('--skip_multi', action='store_true', help='If the multiflow variations should be skipped')
+    parser.add_argument('--local_dynamodb', action='store_true', help='If we should use the local dynamodb')
+    parser.add_argument('--bucket', default='kcmc-heuristic', help='S3 Bucket to store large results')
     args, unknown_args = parser.parse_known_args()
 
-    # Get the name of the STATE file. Added random number to improve thread-safety!
-    STATEFILE = f'/home/gurobi/results/STATE.{randint(10000, 99999)}.log'
+    # Get a connection to the DynamoDB Stateful Broker
+    if args.local_dynamodb:
+        dynamo = boto3.resource('dynamodb', endpoint_url=LOCAL_URI)
+        print('USING LOCAL DYNAMODB')
+    else:
+        dynamo = boto3.resource('dynamodb')
+        print('CONNECTED TO CLOUD DYNAMODB')
+
+    # Get the table and lock client - ASSUME THE LOCK TABLE EXISTS
+    table = dynamo.Table(INSTANCE_TABLE)
+    lock_client = DynamoDBLockClient(dynamo, table_name=LOCK_TABLE)
 
     # Parse the arguments
-    input_csv_file = str(args.input_csv_file.strip())
     time_limit = float(str(args.limit))
     threads = int(float(str(args.threads)))
-    assert os.path.exists(input_csv_file), f'INPUT CSV FILE {input_csv_file} DOES NOT EXISTS!'
+    model_list = [('_single', gurobi_single_flow), ('_multi', gurobi_multi_flow)]
+    if args.skip_multi: model_list = [model_list[0]]
+    print('ALL SET UP!')
 
-    # For each line in the input file (assuming there is no header)
-    with open(input_csv_file, 'r') as input_file:
-        for line_no, serialized_instance in enumerate(input_file):
+    # List all instances in DynamoDB
+    # List all queued instances in DynamoDB
+    scan_kwargs = {'FilterExpression': Attr('queued').eq(True), 'ProjectionExpression': "instance_key"}
+    instances_queue = []
+    done = False
+    start_key = None
+    while not done:
+        if start_key:
+            scan_kwargs['ExclusiveStartKey'] = start_key
+        response = table.scan(**scan_kwargs)
+        instances_queue += [i['instance_key'] for i in response['Items']]
+        start_key = response.get('LastEvaluatedKey', None)
+        done = start_key is None
+        print(f'QUEUE SIZE: {len(instances_queue)} (MAY HAVE DUPLICATES)')
+    instances_queue = sorted(set(instances_queue))
+    print(f'GOT {len(instances_queue)} DIFFERENT INSTANCES TO PROCESS')
 
-            # Get the instance and the values for K and M
-            serialized_instance, kcmc = map(lambda l: l.strip().upper(), serialized_instance.strip().split('|'))
-            if not serialized_instance.startswith('KCMC'): continue  # Only valid lines. Skip the rest
-            kcmc_k = int(kcmc.split('K')[-1].split('M')[0])
-            kcmc_m = int(kcmc.split('M')[-1].split(')')[0])
-            assert kcmc_k >= kcmc_m, 'KCMC K MUST BE NO SMALLER THAN KCMC M!'
+    # While there are instances to acquire
+    lock, instance, instances_queue = acquire_instance(table, lock_client, instances_queue)
+    while lock is not None:
+        serialized_instance = instance['serial']
+        kcmc_k = int(instance['K'])
+        kcmc_m = int(instance['M'])
+        assert kcmc_k >= kcmc_m, 'KCMC K MUST BE NO SMALLER THAN KCMC M!'
 
-            # Parse the KEY of the instance
-            KEY = '_'.join(serialized_instance.split(';', 4)[:4])
+        # Since we have two variations of the gurobi optimizer formulation, we test with both
+        for MODEL_TYPE, factory in model_list:
+            model_key = 'results'+MODEL_TYPE+'_flow'
+            if model_key in instance:
+                print(f'(DONE) SKIPPING MODEL {MODEL_TYPE} ON INSTANCE {instance["instance_key"]}')
+                continue
 
-            # Since we have two variations of the gurobi optimizer formulation, we test with both
-            for MODEL_TYPE, factory in [('.single', gurobi_single_flow), ('.multi', gurobi_multi_flow)]:
-                if args.skip_multi and (MODEL_TYPE == '.multi'): continue
+            # Run the main execution, logging possible errors
+            results = run_gurobi_optimizer(serialized_instance, kcmc_k, kcmc_m,
+                                           time_limit, threads,
+                                           LOGFILE='/tmp/gurobi.log', model_factory=factory)
+            results.update({'instance_key': instance['instance_key'],
+                            'gurobi_model_type': MODEL_TYPE[1:]+'_flow'})
 
-                # Check if the RESULTS file already exists. If so, skip.
-                RESULTS_KEY = f'/home/gurobi/results/{KEY}{MODEL_TYPE}'
-                if os.path.exists(RESULTS_KEY+'.json'): continue
+            # Get the logs, clearing the files
+            try:
+                with open('/tmp/gurobi.logs', 'r') as fin:
+                    results['gurobi_logs'] = fin.readlines()
+                unlink('/tmp/gurobi.logs')
+            except Exception:
+                results['gurobi_logs'] = None
 
-                # If we do manage to acquire the LOCK to the results key:
-                try:
-                    with FileLock(RESULTS_KEY+'.log', timeout=None, delay=None):
+            # Get the larger variables and store in a local file
+            large_values = {key: results.pop(key) for key in ['gurobi_logs', 'variables', 'json_solution']}
+            large_values.update(results)
+            local_file = f'/tmp/dynamodb_objects/{instance["instance_key"]}_{model_key}.json'
+            with open(local_file, 'w') as fout:
+                json.dump(large_values, fout)
 
-                        # Start the logger
-                        logging.basicConfig(filename=RESULTS_KEY+'.log', level=logging.DEBUG)
-                        def log(logstring): logging.info(KEY+MODEL_TYPE+':::'+logstring)
+            # Send the value to S3
+            try:
+                s3_target = f"s3://{args.bucket}/dynamodb_objects/"+(local_file.split('/')[-1])
+                s3_client = boto3.client('s3')
+                response = s3_client.upload_file(local_file, args.bucket, s3_target)
+                results['results'] = s3_target
+            except Exception as exp:
+                if 'the aws access key id you provided does not exist in our records' in str(exp).lower(): pass
+                else: raise exp
 
-                        # Run the main execution, logging possible errors
-                        try:
-                            results = run_gurobi_optimizer(serialized_instance, kcmc_k, kcmc_m, time_limit,
-                                                           threads, log, LOGFILE=RESULTS_KEY+'.log',
-                                                           model_factory=factory)
-                            results['gurobi_model_type'] = MODEL_TYPE[1:]+'_flow'
+            # Update the dynamodb register, unqueueing it
+            results['results'] = results.get('results', local_file)
+            expression, values = get_update_params({model_key: results})
+            table.update_item(
+                Key={'instance_key': instance['instance_key']},
+                UpdateExpression=expression,
+                ExpressionAttributeValues=values
+            )
 
-                            # Save the results on disk and exit with success
-                            with open(RESULTS_KEY+'.json', 'w') as fout:
-                                json.dump(results, fout, indent=2)
+        # De-queue the instance key
+        expression, values = get_update_params({'queued': False}, stringfy=True)
+        table.update_item(
+            Key={'instance_key': instance['instance_key']},
+            UpdateExpression=expression,
+            ExpressionAttributeValues=values
+        )
 
-                            # Printout the result status
-                            result = '{}\t{} {} {}'.format(line_no, KEY+MODEL_TYPE, results['status'], results['mip_gap'])
-                        except Exception as exp:
-                            with open(RESULTS_KEY+'.err', 'a') as fout:
-                                fout.write(f'KEY {KEY+MODEL_TYPE} AT {datetime.now()}\nERROR - {exp}\n{traceback.format_exc()}\n\n')
-
-                            # Printout the error
-                            result = '{}\t{} {}'.format(line_no, KEY+MODEL_TYPE, 'ERROR: '+str(exp))
-
-                        with open(STATEFILE, 'a') as fout:
-                            fout.write(f'{datetime.now()} {result}\n')
-
-                # Locking exception
-                except FileLockException: continue  # If we did not got the lock, skip this key.
+        # Release the lock and get another instance
+        lock.release()
+        lock, instance, instances_queue = acquire_instance(table, lock_client, instances_queue)
+        print(f'QUEUE SIZE: {len(instances_queue)}')
+    print('DONE WITH ALL INSTANCES!')

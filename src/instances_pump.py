@@ -13,8 +13,34 @@ import boto3
 from dynamodb_lock import DynamoDBLockClient
 
 # Payload packages
-from gurobi_optimizer import INSTANCE_TABLE, LOCK_TABLE, LOCAL_URI
 from gurobi_models import GurobiModelWrapper
+
+
+# Constants
+LOCK_TABLE = 'lock_kcmc_instance'
+INSTANCE_TABLE = 'kcmc_instance'
+LOCAL_URI = 'http://dynamodb-local:8000'
+
+
+def parse_instance_row(row: str) -> dict:
+    # Parse a row containing one instance
+    serial, kcmc = map(lambda i: i.strip().upper(), row.split('|'))
+    k = int(kcmc.split('(K')[-1].split('M')[0])
+    m = int(kcmc.split('M')[-1].split(')')[0])
+    _, psk, acc, seed, _ = serial.split(';', 4)
+    pois, sensors, sinks = map(int, psk.split(' '))
+    area, coverage, communication = map(int, acc.split(' '))
+    return {
+        'instance_key': '_'.join(list(map(str, ['KCMC',
+                                                pois, sensors, sinks,
+                                                area, coverage, communication,
+                                                seed]))),
+        'K': k, 'M': m, 'seed': seed,
+        'pois': pois, 'sensors': sensors, 'sinks': sinks,
+        'area': area, 'coverage': coverage, 'communication': communication,
+        'serial': GurobiModelWrapper.compress(serial.strip()),
+        'queued': True
+    }
 
 
 # ######################################################################################################################
@@ -34,26 +60,7 @@ if __name__ == '__main__':
     # Read the instances
     with open(args.instances_file, 'r') as fin:
         instances = fin.readlines()
-
-    data = []
-    for row in instances:
-        serial, kcmc = map(lambda i: i.strip().upper(), row.split('|'))
-        k = int(kcmc.split('(K')[-1].split('M')[0])
-        m = int(kcmc.split('M')[-1].split(')')[0])
-        _, psk, acc, seed, _ = serial.split(';', 4)
-        pois, sensors, sinks = map(int, psk.split(' '))
-        area, coverage, communication = map(int, psk.split(' '))
-        data.append({
-            'instance_key': '_'.join(list(map(str, ['KCMC',
-                                                    pois, sensors, sinks,
-                                                    area, coverage, communication,
-                                                    seed]))),
-            'K': k, 'M': m, 'seed': seed,
-            'pois': pois, 'sensors': sensors, 'sinks': sinks,
-            'area': area, 'coverage': coverage, 'communication': communication,
-            'serial': GurobiModelWrapper.compress(serial.strip()),
-            'queued': True
-        })
+    data = [parse_instance_row(row) for row in instances]
 
     # Put the instances into the tables
     for namespace, dynamo, dynamo_cli in [

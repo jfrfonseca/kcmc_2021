@@ -14,6 +14,12 @@ from datetime import timedelta
 # PIP
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
+try:
+    import tqdm
+except Exception as exp:
+    def tqdm(iterator, **kwargs):
+        for item in iterator:
+            yield item
 
 # Auxiliary packages
 from dynamodb_lock import DynamoDBLockClient, DynamoDBLockError
@@ -21,11 +27,7 @@ from dynamodb_lock import DynamoDBLockClient, DynamoDBLockError
 # Payload packages
 from kcmc_instance import KCMC_Instance
 from gurobi_models import gurobi_multi_flow, gurobi_single_flow, GurobiModelWrapper
-
-# Constants
-LOCK_TABLE = 'lock_kcmc_instance'
-INSTANCE_TABLE = 'kcmc_instance'
-LOCAL_URI = 'http://dynamodb-local:8000'
+from instances_pump import parse_instance_row, INSTANCE_TABLE, LOCK_TABLE, LOCAL_URI
 
 
 def run_gurobi_optimizer(serialized_instance:str,
@@ -120,10 +122,39 @@ def get_update_params(body, stringfy=True):
     return "".join(update_expression)[:-1], update_values
 
 
+def process_instance(time_limit:float, threads:int, MODEL_TYPE:str, instance:dict, factory) -> dict:
+
+    # De-compress the instance
+    serialized_instance = GurobiModelWrapper.decompress(instance['serial'])
+    kcmc_k = int(instance['K'])
+    kcmc_m = int(instance['M'])
+    assert kcmc_k >= kcmc_m, 'KCMC K MUST BE NO SMALLER THAN KCMC M!'
+
+    # Run the main execution, logging possible errors
+    results = run_gurobi_optimizer(serialized_instance, kcmc_k, kcmc_m,
+                                   time_limit, threads,
+                                   LOGFILE='/tmp/dynamodb_objects/gurobi.log', model_factory=factory)
+    results.update(instance)
+    results['gurobi_model_type'] = MODEL_TYPE[1:]+'_flow'
+
+    # Get the logs, clearing the files
+    try:
+        with open('/tmp/dynamodb_objects/gurobi.log', 'r') as fin:
+            results['gurobi_logs'] = fin.readlines()
+        unlink('/tmp/dynamodb_objects/gurobi.log')
+    except Exception:
+        results['gurobi_logs'] = None
+
+    # Return the processed data
+    return results
+
+
 if __name__ == '__main__':
 
     print('SETTING UP...')
-    makedirs('/tmp/dynamodb_objects')
+    try:
+        makedirs('/tmp/dynamodb_objects')
+    except: pass
 
     # Set the arguments
     parser = argparse.ArgumentParser()
@@ -132,8 +163,46 @@ if __name__ == '__main__':
     parser.add_argument('--skip_multi', action='store_true', help='If the multiflow variations should be skipped')
     parser.add_argument('--local_dynamodb', action='store_true', help='If we should use the local dynamodb')
     parser.add_argument('--bucket', default='kcmc-heuristic', help='S3 Bucket to store large results')
+    parser.add_argument('--instances_file', default='/data/instances.csv', help='Use a local instances file instead of DynamoDB')
+    parser.add_argument('-i', '--instance_test', nargs='*', help='Row of the local instances file to test')
     args, unknown_args = parser.parse_known_args()
+    print(args)
 
+    # Parse the model arguments
+    time_limit = float(str(args.limit))
+    threads = int(float(str(args.threads)))
+    model_list = [('_single', gurobi_single_flow), ('_multi', gurobi_multi_flow)]
+    if args.skip_multi: model_list = [model_list[0]]
+
+    # If we do have a test file and a test item, we perform only local small-scale tests -------------------------------
+    test_cases = []
+    if args.instance_test is not None:
+        print(args.instance_test)
+        test_cases = set([int(row) for row in args.instance_test])
+    if len(test_cases) > 0:
+        assert os.path.exists(args.instances_file), 'TEST INSTANCES FILE DO NOT EXISTS! '+args.instances_file
+
+        # Reads the instances
+        instances_list = []
+        with open(args.instances_file, 'r') as fin:
+            for i, row in enumerate(fin):
+                if i in test_cases:
+                    instances_list.append(parse_instance_row(row))
+        print(f'GOT {len(instances_list)} DIFFERENT INSTANCES TO PROCESS')
+
+        # Process the instances locally
+        for instance in tqdm(instances_list):
+            for MODEL_TYPE, factory in model_list:
+                model_key = 'results'+MODEL_TYPE+'_flow'
+                local_file = f'/tmp/dynamodb_objects/{instance["instance_key"]}_{model_key}.json'
+                if os.path.exists(local_file): continue
+                results = process_instance(time_limit, threads, MODEL_TYPE, instance, factory)
+                with open(local_file, 'w') as fout:
+                    json.dump(results, fout)
+        print('DONE WITH ALL LOCAL TEST INSTANCES!')
+        exit(0)
+
+    # If we are in a production environment ----------------------------------------------------------------------------
     # Get a connection to the DynamoDB Stateful Broker
     if args.local_dynamodb:
         dynamo = boto3.resource('dynamodb', endpoint_url=LOCAL_URI)
@@ -145,13 +214,6 @@ if __name__ == '__main__':
     # Get the table and lock client - ASSUME THE LOCK TABLE EXISTS
     table = dynamo.Table(INSTANCE_TABLE)
     lock_client = DynamoDBLockClient(dynamo, table_name=LOCK_TABLE)
-
-    # Parse the arguments
-    time_limit = float(str(args.limit))
-    threads = int(float(str(args.threads)))
-    model_list = [('_single', gurobi_single_flow), ('_multi', gurobi_multi_flow)]
-    if args.skip_multi: model_list = [model_list[0]]
-    print('ALL SET UP!')
 
     # List all instances in DynamoDB
     # List all queued instances in DynamoDB
@@ -170,13 +232,12 @@ if __name__ == '__main__':
     instances_queue = sorted(set(instances_queue))
     print(f'GOT {len(instances_queue)} DIFFERENT INSTANCES TO PROCESS')
 
+    # Start processing loop --------------------------------------------------------------------------------------------
+    print('ALL SET UP!')
+
     # While there are instances to acquire
     lock, instance, instances_queue = acquire_instance(table, lock_client, instances_queue)
     while lock is not None:
-        serialized_instance = GurobiModelWrapper.decompress(instance['serial'])
-        kcmc_k = int(instance['K'])
-        kcmc_m = int(instance['M'])
-        assert kcmc_k >= kcmc_m, 'KCMC K MUST BE NO SMALLER THAN KCMC M!'
 
         # Since we have two variations of the gurobi optimizer formulation, we test with both
         for MODEL_TYPE, factory in model_list:
@@ -185,23 +246,11 @@ if __name__ == '__main__':
                 print(f'(DONE) SKIPPING MODEL {MODEL_TYPE} ON INSTANCE {instance["instance_key"]}')
                 continue
 
-            # Run the main execution, logging possible errors
-            results = run_gurobi_optimizer(serialized_instance, kcmc_k, kcmc_m,
-                                           time_limit, threads,
-                                           LOGFILE='/tmp/gurobi.log', model_factory=factory)
-            results.update({'instance_key': instance['instance_key'],
-                            'gurobi_model_type': MODEL_TYPE[1:]+'_flow'})
-
-            # Get the logs, clearing the files
-            try:
-                with open('/tmp/gurobi.logs', 'r') as fin:
-                    results['gurobi_logs'] = fin.readlines()
-                unlink('/tmp/gurobi.logs')
-            except Exception:
-                results['gurobi_logs'] = None
+            # Process the local results
+            results = process_instance(time_limit, threads, MODEL_TYPE, instance, factory)
 
             # Get the larger variables and store in a local file
-            large_values = {key: results.pop(key) for key in ['gurobi_logs', 'variables', 'json_solution']}
+            large_values = {key: results.pop(key) for key in ['gurobi_logs', 'variables', 'json_solution', 'serial']}
             large_values.update(results)
             local_file = f'/tmp/dynamodb_objects/{instance["instance_key"]}_{model_key}.json'
             with open(local_file, 'w') as fout:

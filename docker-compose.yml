@@ -25,6 +25,22 @@ services:
       - ./data:/data:rw
       - ./src:/src:ro
 
+  gurobi-test:
+    profiles:
+      - gurobi-test
+    build:
+      dockerfile: gurobi.dockerfile
+      context: .
+    command: "python -u /home/gurobi/src/gurobi_optimizer.py -l 60 -t 1 -i 0 1 2 3 4 5 6 7 8 9"
+    environment:
+      GRB_CLIENT_LOG: 3
+      PYTHONPATH: "/home/gurobi/src"
+    volumes:
+      - ./data/kcmc_gurobi.lic:/opt/gurobi/gurobi.lic:ro
+      - ./data:/data:ro
+      - ./src:/home/gurobi/src:ro
+      - ./analysis/results/local_dynamodb_objects:/tmp/dynamodb_objects:rw
+
   dynamodb-local:
     profiles:
       - pump

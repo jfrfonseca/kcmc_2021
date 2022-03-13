@@ -4,10 +4,12 @@ Gurobi Optimizer Driver Script
 
 
 # STDLib
+import os
 import argparse
 
 # PIP
 import boto3
+import simplejson as json
 
 # Auxiliary packages
 from dynamodb_lock import DynamoDBLockClient
@@ -21,23 +23,35 @@ LOCK_TABLE = 'lock_kcmc_instance'
 INSTANCE_TABLE = 'kcmc_instance'
 LOCAL_URI = 'http://dynamodb-local:8000'
 
+# TODO: DEACTIVATE SEED_ONLY
+# SEED_ONLY = None
+SEED_ONLY = {
+    147946681, 147974121, 148053036, 235704359, 179561007, 179624666, 179708997, 179735151, 204994194, 205117521,
+    228986154, 256413511, 256513135, 143762872, 143861160, 146901233, 146956293, 184827184, 184874562, 256556513,
+    256586341, 192392347, 206703304, 206720097, 216955791
+}
+
 
 def parse_instance_row(row: str) -> dict:
     # Parse a row containing one instance
     serial, kcmc = map(lambda i: i.strip().upper(), row.split('|'))
     k = int(kcmc.split('(K')[-1].split('M')[0])
     m = int(kcmc.split('M')[-1].split(')')[0])
-    _, psk, acc, seed, _ = serial.split(';', 4)
-    pois, sensors, sinks = map(int, psk.split(' '))
-    area, coverage, communication = map(int, acc.split(' '))
+    instance_key = '_'.join(serial.split(';', 4)[:-1]).strip().replace(' ', '_')
+    _, pois, sensors, sinks, area, coverage, communication, seed = instance_key.split('_')
+
+    # SEED-ONLY filter, for testing
+    if SEED_ONLY is not None:
+        if int(seed) not in SEED_ONLY:
+            return None
+        print(k, m, seed, 'KCMC', pois, sensors, sinks, area, coverage, communication)
+
+    # No pre-filtering
     return {
-        'instance_key': '_'.join(list(map(str, ['KCMC',
-                                                pois, sensors, sinks,
-                                                area, coverage, communication,
-                                                seed]))),
-        'K': k, 'M': m, 'seed': seed,
-        'pois': pois, 'sensors': sensors, 'sinks': sinks,
-        'area': area, 'coverage': coverage, 'communication': communication,
+        'instance_key': instance_key,
+        'K': k, 'M': m, 'seed': int(seed),
+        #'pois': int(pois), 'sensors': int(sensors), 'sinks': int(sinks),
+        #'area': int(area), 'coverage': int(coverage), 'communication': int(communication),
         'serial': GurobiModelWrapper.compress(serial.strip()),
         'queued': True
     }
@@ -60,12 +74,12 @@ if __name__ == '__main__':
     # Read the instances
     with open(args.instances_file, 'r') as fin:
         instances = fin.readlines()
-    data = [parse_instance_row(row) for row in instances]
+    data = [d for d in [parse_instance_row(row) for row in instances] if d is not None]
 
     # Put the instances into the tables
     for namespace, dynamo, dynamo_cli in [
-        ('CLOUD', boto3.resource('dynamodb'), boto3.client('dynamodb')),
-        ('LOCAL', boto3.resource('dynamodb', endpoint_url=LOCAL_URI), boto3.client('dynamodb', endpoint_url=LOCAL_URI))
+        # ('LOCAL', boto3.resource('dynamodb', endpoint_url=LOCAL_URI), boto3.client('dynamodb', endpoint_url=LOCAL_URI)),
+        ('CLOUD', boto3.resource('dynamodb'), boto3.client('dynamodb'))
     ]:
 
         # Clear the lock table, if exists
@@ -114,5 +128,17 @@ if __name__ == '__main__':
         except Exception as exp:
             if 'cannot create preexisting table' in str(exp).lower(): pass
             else: raise exp
+
+        # Download the DynamoDB table and save it locally
+        file_prefix = f'{os.path.abspath(args.instances_file)}.dynamodb.{namespace}.'
+        response = table.scan(Select='ALL_ATTRIBUTES')
+        file_counter = 0
+        with open(file_prefix+f'{file_counter}.json', 'w') as fout:
+            json.dump(response['Items'], fout, use_decimal=True)
+        while 'LastEvaluatedKey' in response:
+            response = table.scan(Select='ALL_ATTRIBUTES', ExclusiveStartKey=response['LastEvaluatedKey'])
+            file_counter += 1
+            with open(file_prefix+f'{file_counter}.json', 'w') as fout:
+                json.dump(response['Items'], fout, use_decimal=True)
 
     exit(0)

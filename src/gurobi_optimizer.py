@@ -4,15 +4,15 @@ Gurobi Optimizer Driver Script
 
 
 # STDLib
-import json
-import argparse
 import os
+import argparse
 from typing import Any
 from os import unlink, makedirs
 from datetime import timedelta
 
 # PIP
 import boto3
+import simplejson as json
 from boto3.dynamodb.conditions import Key, Attr
 try:
     import tqdm

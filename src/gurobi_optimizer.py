@@ -213,8 +213,10 @@ if __name__ == '__main__':
 
                 # Nerd-out the results
                 model_name = {'_multi': 'MULTI-FLOW', '_single': 'SINGLE-FLOW'}[MODEL_TYPE]
+                identity = f'{instance["instance_key"]} {instance["seed"]} {model_name} K={instance["K"]} M={instance["M"]}'
                 for key in sorted(details.keys()):
-                    print(f'\t0u0 ({instance["instance_key"]} {instance["seed"]} {model_name}) {key}: {details[key]}')
+                    print(f'\t0u0 ({identity}) {key}: {details[key]}')
+                print()
 
         print('DONE WITH ALL LOCAL TEST INSTANCES!')
         exit(0)

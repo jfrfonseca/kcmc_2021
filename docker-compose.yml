@@ -146,6 +146,7 @@ services:
     volumes:
       - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
       - ./data:/data:rw
+      - /media/zeff/Peixe/DATA:/data/dynamodb_objs:ro
       - ./builds:/builds:ro
       - ./analysis:/home/gurobi/0_analysis:rw
       - ./src:/home/gurobi/0_analysis/src:ro

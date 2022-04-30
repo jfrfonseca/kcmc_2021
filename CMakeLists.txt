@@ -24,6 +24,10 @@ ADD_EXECUTABLE(instance_evaluator src/instance_evaluator.cpp)
 target_link_libraries(instance_evaluator KCMC_Module)
 
 
+# Random Placements Visualizer ------------------------------------------------
+ADD_EXECUTABLE(placements_visualizer src/placements_visualizer.cpp)
+
+
 ## Optimizers (GEN ALG) -------------------------------------------------------
 # ADD_EXECUTABLE(optimizer_gupta_exact deprecated/optimizer_gupta_exact.cpp)
 # target_link_libraries(optimizer_gupta_exact KCMC_Module)

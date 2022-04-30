@@ -3,11 +3,27 @@ KCMC_Instance Object
 """
 
 
+import subprocess
 from typing import List, Set, Tuple, Dict
 try:
     import igraph
 except Exception as exp:
     igraph = None
+
+
+# Get placements using C++ interface
+def get_placements(pois, sensors, sinks, area_side, random_seed, executable='/app/placements_visualizer'):
+    out = subprocess.Popen(list(map(str, [executable, pois, sensors, sinks, area_side, random_seed])),
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    stdout,stderr = out.communicate()
+    assert stderr is None, f'ERROR ON THE PLACEMENTS VISUALIZER.\nSTDOUT:{stdout}\n\nSTDERR:{stderr}'
+    placements = {}
+    for row in stdout.decode().strip().splitlines():
+        row = row.strip()
+        if row.startswith('id'): continue
+        i, x, y = row.split(',')
+        placements[i] = (int(x), int(y))
+    return placements
 
 
 class KCMC_Instance(object):
@@ -50,6 +66,7 @@ class KCMC_Instance(object):
         except Exception as exp: raise AssertionError('INVALID INSTANCE PREAMBLE!')
 
         # Prepare the buffers
+        self._placements = {}
         self.poi_sensor = {}
         self.sensor_poi = {}
         self.sensor_sensor = {}
@@ -210,6 +227,12 @@ class KCMC_Instance(object):
                                                 i not in self.sensor_sink])}
         return self._connected_sensors
 
+    @property
+    def placements(self):
+        if self._placements is None:
+            self._placements = get_placements(self.num_pois, self.num_sensors, self.num_sinks, self.area_side, self.random_seed)
+        return self._placements.copy()
+
     # SERVICES #########################################################################################################
 
     @staticmethod
@@ -248,6 +271,11 @@ class KCMC_Instance(object):
         )
         result.virtual_sinks_map = virtual_sinks_map
         return result
+
+    # PLOTTING #########################################################################################################
+
+    # Plot using
+
 
     def get_node_label(self, node, installation=None):
         result = 'V'+node if node in self.virtual_sinks else node

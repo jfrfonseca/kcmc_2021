@@ -6,7 +6,7 @@
 
 // STDLib Dependencies
 #include <unistd.h>  // getpid
-#include <iostream>  // cin, cout, endl
+#include <iostream>  // cin, cout, endl, printf, fprintf
 
 // Dependencies from this package
 #include "kcmc_instance.h"
@@ -108,7 +108,7 @@ int main(int argc, char* const argv[]) {
                 printf("%s\n", instance->serialize().c_str());
 
                 /* FOR VERIFICATION */
-                if (argc == 7) {
+                if (argc == 8) {
                     std::string serialized_instance = instance->serialize();
                     auto *new_instance = new KCMC_Instance(serialized_instance);
                     if (new_instance->serialize() == instance->serialize()) {

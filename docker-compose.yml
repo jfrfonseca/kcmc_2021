@@ -2,7 +2,10 @@ version: "3.9"
 
 services:
 
+  # FUNCTIONAL SERVICES =======================================================
+
   compiler:
+    # Dockerized compiler environment
     profiles:
       - compiler
     build:
@@ -15,6 +18,7 @@ services:
       - ./builds:/app/builds:rw
 
   generator:
+    # Instances generator
     profiles:
       - generator
     command: '/src/run_instance_generator.sh'
@@ -25,23 +29,8 @@ services:
       - ./data:/data:rw
       - ./src:/src:ro
 
-  gurobi-test:
-    profiles:
-      - gurobi-test
-    build:
-      dockerfile: gurobi.dockerfile
-      context: .
-    command: "python -u /home/gurobi/src/gurobi_optimizer.py -l 60 -t 1 -i 0 1 2 3 4 5 6 7 8 9"
-    environment:
-      GRB_CLIENT_LOG: 3
-      PYTHONPATH: "/home/gurobi/src"
-    volumes:
-      - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
-      - ./data:/data:ro
-      - ./src:/home/gurobi/src:ro
-      - ./analysis/results/local_dynamodb_objects:/tmp/dynamodb_objects:rw
-
   dynamodb-local:
+    # Local document database for development
     profiles:
       - pump
       - gurobi-local
@@ -55,6 +44,7 @@ services:
     working_dir: /home/dynamodblocal
 
   pump:
+    # Send instances for cloud processing
     profiles:
       - pump
     build:
@@ -74,6 +64,7 @@ services:
         condition: service_started
 
   gurobi-local-dev:
+    # Local processing of optimizer, for development
     profiles:
       - gurobi-local
     build:
@@ -98,7 +89,10 @@ services:
       mode: replicated
       replicas: 2
 
+  # PAYLOAD SERVICES ==========================================================
+
   gurobi:
+    # Cloud processing of gurobi solver at scale
     profiles:
       - gurobi
     build:
@@ -115,6 +109,28 @@ services:
       - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
       - ./data:/data:ro
       - ./src:/home/gurobi/src:ro
+
+  optimizer:
+    # Custom headless optimizer
+    profiles:
+      - optimizer
+    build:
+      dockerfile: gurobi.dockerfile
+      context: .
+    environment:
+      GRB_CLIENT_LOG: 3
+      PYTHONPATH: "/home/gurobi/src"
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: ${AWS_SECRET_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
+      - ./data:/data:ro
+      - ./analysis/results/optimizer:/results:rw
+      - ./src:/home/gurobi/src:ro
+      - ./builds:/app:ro
+
+  # DATA VISUALIZATION AND ANALYSIS SERVICES ==================================
 
   notebook:
     profiles:
@@ -134,28 +150,10 @@ services:
       - ./analysis:/home/gurobi/0_analysis:rw
       - ./src:/home/gurobi/0_analysis/src:ro
 
-  optimizer:
-    profiles:
-      - optimizer
-    build:
-      dockerfile: gurobi.dockerfile
-      context: .
-    environment:
-      GRB_CLIENT_LOG: 3
-      PYTHONPATH: "/home/gurobi/src"
-      AWS_DEFAULT_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: ${AWS_SECRET_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-    volumes:
-      - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
-      - ./data:/data:ro
-      - ./analysis/results/optimizer:/results:rw
-      - ./src:/home/gurobi/src:ro
-      - ./builds:/app:ro
-
   dataviz:
     profiles:
       - dataviz
+      - notebook
     image: nginx:alpine
     ports:
       - 80:80
@@ -168,7 +166,7 @@ services:
       - ./dataviz/stylesheets:/usr/share/nginx/html/stylesheets:ro
       - ./data/visualizations:/usr/share/nginx/html/datasets:ro
 
-# The profiles below were used for the instance probability study
+# The services below were used for the instance probability study
 #
 #  redis:
 #    profiles:

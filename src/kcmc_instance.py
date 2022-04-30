@@ -67,7 +67,7 @@ class KCMC_Instance(object):
         except Exception as exp: raise AssertionError('INVALID INSTANCE PREAMBLE!')
 
         # Prepare the buffers
-        self._placements = {}
+        self._placements = None
         self.poi_sensor = {}
         self.sensor_poi = {}
         self.sensor_sensor = {}
@@ -339,18 +339,24 @@ class KCMC_Instance(object):
 
         # Add all poi-sensor edges
         for p, n_sensors in self.poi_sensor.items():
+            p = f'p{p}'
             for i in n_sensors:
+                i = f'i{i}'
                 yield self.cytoscape_edge(_id=p+i, source=p, target=i)
 
         # Add all sensor-sensor edges
         for ss, n_sensors in self.sensor_sensor.items():
+            ss = f'i{ss}'
             for st in n_sensors:
+                st = f'i{st}'
                 if int(ss[1:]) >= int(st[1:]): continue  # Avoid both back-edges and self-edges (directed graph)
                 yield self.cytoscape_edge(_id=ss+st, source=ss, target=st)
 
         # Add all sensor-sink edges
         for i, n_sinks in self.sensor_sink.items():
+            i = f'i{i}'
             for s in n_sinks:
+                s = f's{s}'
                 yield self.cytoscape_edge(_id=i+s, source=i, target=s)
 
     def cytoscape(self, target_file=None):

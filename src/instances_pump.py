@@ -23,13 +23,13 @@ LOCK_TABLE = 'lock_kcmc_instance'
 INSTANCE_TABLE = 'kcmc_instance'
 LOCAL_URI = 'http://dynamodb-local:8000'
 
-# TODO: DEACTIVATE SEED_ONLY
-# SEED_ONLY = None
-SEED_ONLY = {
-    147946681, 147974121, 148053036, 235704359, 179561007, 179624666, 179708997, 179735151, 204994194, 205117521,
-    228986154, 256413511, 256513135, 143762872, 143861160, 146901233, 146956293, 184827184, 184874562, 256556513,
-    256586341, 192392347, 206703304, 206720097, 216955791
-}
+# Dev Bypasses
+SEED_ONLY = None
+# SEED_ONLY = {
+#     147946681, 147974121, 148053036, 235704359, 179561007, 179624666, 179708997, 179735151, 204994194, 205117521,
+#     228986154, 256413511, 256513135, 143762872, 143861160, 146901233, 146956293, 184827184, 184874562, 256556513,
+#     256586341, 192392347, 206703304, 206720097, 216955791
+# }
 
 
 def parse_instance_row(row: str) -> dict:
@@ -50,8 +50,8 @@ def parse_instance_row(row: str) -> dict:
     return {
         'instance_key': instance_key,
         'K': k, 'M': m, 'seed': int(seed),
-        #'pois': int(pois), 'sensors': int(sensors), 'sinks': int(sinks),
-        #'area': int(area), 'coverage': int(coverage), 'communication': int(communication),
+        'pois': int(pois), 'sensors': int(sensors), 'sinks': int(sinks),
+        'area': int(area), 'coverage': int(coverage), 'communication': int(communication),
         'serial': GurobiModelWrapper.compress(serial.strip()),
         'queued': True
     }

@@ -36,7 +36,7 @@ services:
       GRB_CLIENT_LOG: 3
       PYTHONPATH: "/home/gurobi/src"
     volumes:
-      - ./data/kcmc_gurobi.lic:/opt/gurobi/gurobi.lic:ro
+      - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
       - ./data:/data:ro
       - ./src:/home/gurobi/src:ro
       - ./analysis/results/local_dynamodb_objects:/tmp/dynamodb_objects:rw
@@ -64,16 +64,16 @@ services:
     environment:
       PYTHONPATH: "/home/gurobi/src"
       AWS_DEFAULT_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: 'YOUR_ACCESS_KEY_ID_HERE'
-      AWS_SECRET_ACCESS_KEY: 'YOUR_SECRET_ACCESS_KEY_HERE'
+      AWS_ACCESS_KEY_ID: ${AWS_SECRET_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     volumes:
-      - ./data:/data:ro
+      - ./data:/data:rw
       - ./src:/home/gurobi/src:ro
     depends_on:
       dynamodb-local:
         condition: service_started
 
-  gurobi-local:
+  gurobi-local-dev:
     profiles:
       - gurobi-local
     build:
@@ -84,10 +84,10 @@ services:
       GRB_CLIENT_LOG: 3
       PYTHONPATH: "/home/gurobi/src"
       AWS_DEFAULT_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: 'YOUR_ACCESS_KEY_ID_HERE'
-      AWS_SECRET_ACCESS_KEY: 'YOUR_SECRET_ACCESS_KEY_HERE'
+      AWS_ACCESS_KEY_ID: ${AWS_SECRET_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     volumes:
-      - ./data/kcmc_gurobi.lic:/opt/gurobi/gurobi.lic:ro
+      - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
       - ./data:/data:ro
       - ./src:/home/gurobi/src:ro
       - ./analysis/results/local_dynamodb_objects:/tmp/dynamodb_objects:rw
@@ -109,10 +109,10 @@ services:
       GRB_CLIENT_LOG: 3
       PYTHONPATH: "/home/gurobi/src"
       AWS_DEFAULT_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: 'YOUR_ACCESS_KEY_ID_HERE'
-      AWS_SECRET_ACCESS_KEY: 'YOUR_SECRET_ACCESS_KEY_HERE'
+      AWS_ACCESS_KEY_ID: ${AWS_SECRET_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     volumes:
-      - ./data/kcmc_gurobi.lic:/opt/gurobi/gurobi.lic:ro
+      - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
       - ./data:/data:ro
       - ./src:/home/gurobi/src:ro
 
@@ -128,12 +128,30 @@ services:
       GRB_CLIENT_LOG: 3
       PYTHONPATH: "/home/gurobi/0_analysis/src"
     volumes:
-      - ./data/kcmc_gurobi.lic:/opt/gurobi/gurobi.lic:ro
+      - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
       - ./data:/data:rw
       - /media/zeff/Peixe/DATA:/data/dynamodb_objs:ro
       - ./builds:/builds:ro
       - ./analysis:/home/gurobi/0_analysis:rw
       - ./src:/home/gurobi/0_analysis/src:ro
+
+  optimizer:
+    profiles:
+      - optimizer
+    build:
+      dockerfile: gurobi.dockerfile
+      context: .
+    environment:
+      GRB_CLIENT_LOG: 3
+      PYTHONPATH: "/home/gurobi/src"
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: ${AWS_SECRET_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
+      - ./data:/data:ro
+      - ./analysis/results/optimizer:/results:rw
+      - ./src:/home/gurobi/src:ro
 
 # The profiles below were used for the instance probability study
 #

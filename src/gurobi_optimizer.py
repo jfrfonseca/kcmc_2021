@@ -12,6 +12,7 @@ from datetime import timedelta
 
 # PIP
 import boto3
+import ijson
 import simplejson as json
 from boto3.dynamodb.conditions import Key, Attr
 try:
@@ -39,14 +40,14 @@ def run_gurobi_optimizer(serialized_instance:str,
     # De-Serialize the instance as a KCMC_Instance object.
     # It MIGHT be multisink and thus incompatible with the ILP formulation
     instance = KCMC_Instance(serialized_instance, False, True, True)
-    print(f'\tParsed raw instance of key {instance.key_str}')
+    print(f'\tParsed raw instance of key {instance.key_str} (seed {instance.random_seed})')
     # WE ASSUME SINGLE-SINK INSTANCES
 
     # MODEL SETUP ======================================================================================================
 
     # Build the model and its variables
     model, X, Y = model_factory(kcmc_k, kcmc_m, instance, time_limit, threads, LOGFILE)
-    print('\tGUROBI Model set up')
+    print(f'\tGUROBI Model {model.name} set up')
 
     # MODEL EXECUTION ==================================================================================================
 
@@ -158,15 +159,15 @@ if __name__ == '__main__':
 
     # Set the arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument('-l', '--limit', type=int, help='Time limit', default=3600)
-    parser.add_argument('-t', '--threads', type=int, help='Number of threads to use in gurobi process', default=1)
-    parser.add_argument('--skip_multi', action='store_true', help='If the multiflow variations should be skipped')
-    parser.add_argument('--local_dynamodb', action='store_true', help='If we should use the local dynamodb')
-    parser.add_argument('--bucket', default='kcmc-heuristic', help='S3 Bucket to store large results')
-    parser.add_argument('--instances_file', default='/data/instances.csv', help='Use a local instances file instead of DynamoDB')
-    parser.add_argument('-i', '--instance_test', nargs='*', help='Row of the local instances file to test')
+    parser.add_argument('-l', '--limit', type=int, help='Time limit, in seconds. Default: 3600', default=3600)
+    parser.add_argument('-t', '--threads', type=int, help='Number of threads to use in gurobi process. Default: 1', default=1)
+    parser.add_argument('--skip_multi', action='store_true', help='If the multiflow formulation should be skipped. Default: False')
+    parser.add_argument('--local_dynamodb', action='store_true', help='If we should use the local dynamodb. Default: False')
+    parser.add_argument('--bucket', default='kcmc-heuristic', help='S3 Bucket to store large results. Default: kcmc-heuristic')
+    parser.add_argument('--instances_file', default='/data/instances.csv', help='Use a local instances file instead of DynamoDB. Default: /data/instances.csv')
+    parser.add_argument('-i', '--instance_test', nargs='*', help='Number of the row of the local instances file to test. If provided, the DynamoDB instances will be ignored.')
+    parser.add_argument('-o', '--output', default='/results', help='If test instances were provided, then this argument is the directory where the results will be placed.')
     args, unknown_args = parser.parse_known_args()
-    print(args)
 
     # Parse the model arguments
     time_limit = float(str(args.limit))
@@ -177,28 +178,46 @@ if __name__ == '__main__':
     # If we do have a test file and a test item, we perform only local small-scale tests -------------------------------
     test_cases = []
     if args.instance_test is not None:
-        print(args.instance_test)
         test_cases = set([int(row) for row in args.instance_test])
     if len(test_cases) > 0:
+        output_path = os.path.abspath(args.output)
         assert os.path.exists(args.instances_file), 'TEST INSTANCES FILE DO NOT EXISTS! '+args.instances_file
+        assert os.path.exists(output_path), 'OUTPUT DIRECTORY DO NOT EXISTS! '+output_path
 
         # Reads the instances
-        instances_list = []
+        instances_list_raw = []
         with open(args.instances_file, 'r') as fin:
             for i, row in enumerate(fin):
                 if i in test_cases:
-                    instances_list.append(parse_instance_row(row))
-        print(f'GOT {len(instances_list)} DIFFERENT INSTANCES TO PROCESS')
+                    instances_list_raw.append(row)
+        print(f'GOT {len(instances_list_raw)} DIFFERENT INSTANCES TO PROCESS')
 
         # Process the instances locally
-        for instance in tqdm(instances_list):
+        for instance_raw in tqdm(instances_list_raw):
+            instance = parse_instance_row(instance_raw)
             for MODEL_TYPE, factory in model_list:
                 model_key = 'results'+MODEL_TYPE+'_flow'
-                local_file = f'/tmp/dynamodb_objects/{instance["instance_key"]}_{model_key}.json'
-                if os.path.exists(local_file): continue
-                results = process_instance(time_limit, threads, MODEL_TYPE, instance, factory)
-                with open(local_file, 'w') as fout:
-                    json.dump(results, fout)
+                results_file = os.path.join(output_path, f'{instance["instance_key"]}_{model_key}.json')
+
+                # If there is a previously-processed instance, quick-parse its details
+                if os.path.exists(results_file):
+                    details = {}
+                    with open(results_file, 'r') as f:
+                        for obj in ijson.items(f, 'json_solution'):
+                            details = json.loads(obj).get('SolutionInfo')
+                else:
+                    results = process_instance(time_limit, threads, MODEL_TYPE, instance, factory)
+                    with open(results_file, 'w') as fout:
+                        json.dump(results, fout)
+                    details = json.loads(results.get('json_solution', '{}')).get('SolutionInfo')
+
+                # Nerd-out the results
+                model_name = {'_multi': 'MULTI-FLOW', '_single': 'SINGLE-FLOW'}[MODEL_TYPE]
+                identity = f'{instance["instance_key"]} {instance["seed"]} {model_name} K={instance["K"]} M={instance["M"]}'
+                for key in sorted(details.keys()):
+                    print(f'\t0u0 ({identity}) {key}: {details[key]}')
+                print()
+
         print('DONE WITH ALL LOCAL TEST INSTANCES!')
         exit(0)
 

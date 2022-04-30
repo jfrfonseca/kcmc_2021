@@ -297,7 +297,7 @@ class KCMC_Instance(object):
         return result
 
     @staticmethod
-    def cytoscape_edge(_id:str, source:str, target:str, weight=None):
+    def cytoscape_edge(_id:str, source:str, target:str, weight=None, width=None):
 
         # Model the data
         data = {"id": str(_id), "source": str(source), "target": str(target)}
@@ -308,6 +308,11 @@ class KCMC_Instance(object):
             "data": data, "group": "edges", "classes": "", "position": {},
             "locked": False, "removed": False, "selected": False, "selectable": True, "grabbable": True
         }
+
+        # Add edge width
+        if width is not None:
+            if 'style' not in result: result['style'] = {}
+            result['style']['width'] = str(int(width))+'px'
 
         return result
 
@@ -342,7 +347,7 @@ class KCMC_Instance(object):
             p = f'p{p}'
             for i in n_sensors:
                 i = f'i{i}'
-                yield self.cytoscape_edge(_id=p+i, source=p, target=i, weight=0.01)
+                yield self.cytoscape_edge(_id=p+i, source=p, target=i, width=6)
 
         # Add all sensor-sensor edges
         for ss, n_sensors in self.sensor_sensor.items():
@@ -350,14 +355,14 @@ class KCMC_Instance(object):
             for st in n_sensors:
                 st = f'i{st}'
                 if int(ss[1:]) >= int(st[1:]): continue  # Avoid both back-edges and self-edges (directed graph)
-                yield self.cytoscape_edge(_id=ss+st, source=ss, target=st, weight=0.0033)
+                yield self.cytoscape_edge(_id=ss+st, source=ss, target=st, width=3)
 
         # Add all sensor-sink edges
         for i, n_sinks in self.sensor_sink.items():
             i = f'i{i}'
             for s in n_sinks:
                 s = f's{s}'
-                yield self.cytoscape_edge(_id=i+s, source=i, target=s, weight=0.01)
+                yield self.cytoscape_edge(_id=i+s, source=i, target=s, width=6)
 
     def cytoscape(self, target_file=None):
         # If no file is provided, return the (potentially very large!) list of dictionaries

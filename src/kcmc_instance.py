@@ -3,6 +3,7 @@ KCMC_Instance Object
 """
 
 
+import json
 import subprocess
 from typing import List, Set, Tuple, Dict
 try:
@@ -272,10 +273,107 @@ class KCMC_Instance(object):
         result.virtual_sinks_map = virtual_sinks_map
         return result
 
-    # PLOTTING #########################################################################################################
+    # PLOTTING IN CYTOSCAPE.JS #########################################################################################
 
-    # Plot using
+    @staticmethod
+    def cytoscape_node(_id:str, name=None, weight=None, color=None, classes=None, x=None, y=None):
 
+        # Model the data
+        data = {"id": str(_id), "name": "node"+str(_id) if name is None else str(name)}
+        if weight is not None: data['score'] = float(weight)
+
+        # Model the result
+        result = {
+            "data": data, "group": "nodes", "classes": list(map(str, [] if classes is None else classes)),
+            "locked": False, "removed": False, "selected": False, "selectable": True, "grabbable": True,
+            "position": {"x": float(x), "y": float(y)} if None not in [x, y] else {}
+        }
+
+        # Add color (optional)
+        if color is not None:
+            if 'style' not in result: result['style'] = {}
+            result['style']['background-color'] = str(color)
+
+        return result
+
+    @staticmethod
+    def cytoscape_edge(_id:str, source:str, target:str, weight=None):
+
+        # Model the data
+        data = {"id": str(_id), "source": str(source), "target": str(target)}
+        if weight is not None: data['weight'] = float(weight)
+
+        # Model the result
+        result = {
+            "data": data, "group": "edges", "classes": "", "position": {},
+            "locked": False, "removed": False, "selected": False, "selectable": True, "grabbable": True
+        }
+
+        return result
+
+    def cytoscape_iter(self):
+        # Iteration method, to allow for different types of usages
+
+        # Get the placements
+        placements = self.placements
+
+        # Add all POIs, sensors and sinks
+        for p in self.pois:
+            yield self.cytoscape_node(
+                _id=p, name=p,
+                x=placements[p][0], y=placements[p][1],
+                weight=1.0, color=self.color_dict['p']
+            )
+        for i in self.sensors:
+            yield self.cytoscape_node(
+                _id=i, name=i,
+                x=placements[i][0], y=placements[i][1],
+                weight=0.33, color=self.color_dict['i']
+            )
+        for s in self.sinks:
+            yield self.cytoscape_node(
+                _id=s, name=s,
+                x=placements[s][0], y=placements[s][1],
+                weight=0.33, color=self.color_dict['s']
+            )
+
+        # Add all poi-sensor edges
+        for p, n_sensors in self.poi_sensor.items():
+            for i in n_sensors:
+                yield self.cytoscape_edge(_id=p+i, source=p, target=i)
+
+        # Add all sensor-sensor edges
+        for ss, n_sensors in self.sensor_sensor.items():
+            for st in n_sensors:
+                if int(ss[1:]) >= int(st[1:]): continue  # Avoid both back-edges and self-edges (directed graph)
+                yield self.cytoscape_edge(_id=ss+st, source=ss, target=st)
+
+        # Add all sensor-sink edges
+        for i, n_sinks in self.sensor_sink.items():
+            for s in n_sinks:
+                yield self.cytoscape_edge(_id=i+s, source=i, target=s)
+
+    def cytoscape(self, target_file=None):
+        # If no file is provided, return the (potentially very large!) list of dictionaries
+        if target_file is None: return list(self.cytoscape_iter())
+
+        # Write directly to a file, iteractively
+        num_rows = 0
+        with open(target_file, 'w') as fout:
+            fout.write('[')
+            has_previous = False
+            for line in self.cytoscape_iter():
+                if has_previous: fout.write(',')
+                fout.write('\n\t')
+                fout.write(json.dumps(line))
+                has_previous = True
+                num_rows += 1
+            fout.write('\n]')
+
+        # Returns the number of data rows in the file
+        return num_rows
+
+    # PLOTTING IN iGRAPH ###############################################################################################
 
     def get_node_label(self, node, installation=None):
         result = 'V'+node if node in self.virtual_sinks else node

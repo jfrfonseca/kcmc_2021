@@ -238,7 +238,7 @@ int KCMC_Instance::get_connectivity(int buffer[], std::unordered_set<int> &inact
 }
 
 
-int KCMC_Instance::local_optima (int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *result_buffer) {
+int KCMC_Instance::local_optima(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *result_buffer) {
 
     // Prepare buffers
     int valid;

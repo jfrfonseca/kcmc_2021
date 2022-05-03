@@ -5,7 +5,7 @@
 
 
 // STDLib Dependencies
-#include <csignal>   // SIGINT,
+#include <csignal>   // SIGINT and other signals
 #include <iostream>  // cin, cout, endl
 
 // Dependencies from this package

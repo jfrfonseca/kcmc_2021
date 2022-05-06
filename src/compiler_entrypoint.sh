@@ -11,3 +11,4 @@ cp placements_visualizer /app/builds
 # cp optimizer_gupta_exact /app/builds
 # cp optimizer_gupta_adapted /app/builds
 cp optimizer_genalg_binary /app/builds
+cp optimizer_dbfs /app/builds

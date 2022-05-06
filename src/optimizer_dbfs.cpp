@@ -64,7 +64,8 @@ int KCMC_Instance::directed_bfs(std::unordered_set<int> &seed_sensors,
  * */
 
 
-void printout_short(const std::string key, const int num_sensors, const std::string operation,
+void printout_short(const std::string key, int k, int m,
+                    const int num_sensors, const std::string operation,
                     const long duration, std::unordered_set<int> &used_installation_spots) {
 
     // Reformat the used installation spots as an array of 0/1
@@ -81,7 +82,7 @@ void printout_short(const std::string key, const int num_sensors, const std::str
     // - The amount of microsseconds the method needed to run
     // - The number of used installation spots
     // - The resulting map of the instance, as a binary of num_sensors bits
-    out << key
+    out << key << "\t" << k << "\t" << m
         << "\t" << operation
         << "\t" << duration
         << "\t" << used_installation_spots.size()
@@ -139,14 +140,14 @@ int main(int argc, char* const argv[]) {
     }
 
     // Print the header
-    // printf("Key\tOperation\tRuntime\tObjective\tQuality\tSolution\n");
+    // printf("Key\tK\tM\tOperation\tRuntime\tObjective\tQuality\tSolution\n");
 
     // Validate the whole instance, getting the first local optima
     auto start = std::chrono::high_resolution_clock::now();
     instance->local_optima(k, m, emptyset, &used_installation_spots);
     auto end = std::chrono::high_resolution_clock::now();
     long duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    printout_short(instance->key(), instance->num_sensors, "local_optima", duration, used_installation_spots);
+    printout_short(instance->key(), k, m, instance->num_sensors, "local_optima", duration, used_installation_spots);
     used_installation_spots.clear();
 
     // Process the Directed Breadth-First Search as a local optima, using the poi-covering sensors as seed
@@ -159,7 +160,7 @@ int main(int argc, char* const argv[]) {
     instance->directed_bfs(seed_sensors, emptyset, &used_installation_spots);
     end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    printout_short(instance->key(), instance->num_sensors, "directed_bfs", duration, used_installation_spots);
+    printout_short(instance->key(), k, m, instance->num_sensors, "directed_bfs", duration, used_installation_spots);
 
     return 0;
 }

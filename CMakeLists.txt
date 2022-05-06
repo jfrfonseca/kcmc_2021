@@ -36,3 +36,7 @@ ADD_EXECUTABLE(placements_visualizer src/placements_visualizer.cpp)
 
 ADD_EXECUTABLE(optimizer_genalg_binary src/optimizer_binary_genalg.cpp)
 target_link_libraries(optimizer_genalg_binary KCMC_Module)
+
+
+ADD_EXECUTABLE(optimizer_dbfs src/optimizer_dbfs.cpp)
+target_link_libraries(optimizer_dbfs KCMC_Module)

@@ -6,6 +6,8 @@
 #include <queue>      // queue
 #include <iostream>   // cin, cout, endl
 #include <chrono>     // time functions
+#include <iomanip>    // setfill, setw
+#include <cstring>    // strcpy
 
 // Dependencies from this package
 #include "kcmc_instance.h"  // KCMC Instance class headers
@@ -62,7 +64,7 @@ int KCMC_Instance::directed_bfs(std::unordered_set<int> &seed_sensors,
  * */
 
 
-void printout_short(const int num_sensors, const std::string operation,
+void printout_short(const std::string key, const int num_sensors, const std::string operation,
                     const long duration, std::unordered_set<int> &used_installation_spots) {
 
     // Reformat the used installation spots as an array of 0/1
@@ -74,11 +76,17 @@ void printout_short(const int num_sensors, const std::string operation,
     std::ostringstream out;
 
     // Print a line with:
-    // - The identifier of the current operation
+    // - The key of the instance
+    // - The name of the current operation
     // - The amount of microsseconds the method needed to run
     // - The number of used installation spots
     // - The resulting map of the instance, as a binary of num_sensors bits
-    out << operation << "\t" << duration << "\t" << used_installation_spots.size() << "\t";
+    out << key
+        << "\t" << operation
+        << "\t" << duration
+        << "\t" << used_installation_spots.size()
+        << "\t" << std::fixed << std::setprecision(5) << (double)(num_sensors - used_installation_spots.size()) / (double)num_sensors
+        << "\t";
     for (int i=0; i<num_sensors; i++) {out << individual[i];}
     // Flush
     std::cout << out.str() << std::endl;
@@ -87,17 +95,18 @@ void printout_short(const int num_sensors, const std::string operation,
 
 void help() {
     std::cout << "Please, use the correct input for the KCMC instance optimizer, DBFS version:" << std::endl << std::endl;
-    std::cout << "./optimizer_dbfs <k> <m> <instance>" << std::endl;
+    std::cout << "./optimizer_dbfs <instance> <k> <m>" << std::endl;
     std::cout << "  where:" << std::endl << std::endl;
-    std::cout << "K > 0 is the desired K coverage" << std::endl;
-    std::cout << "M >= K is the desired M connectivity" << std::endl;
     std::cout << "<instance> is the serialized KCMC instance" << std::endl;
+    std::cout << "Integer 0 < K < 10 is the desired K coverage" << std::endl;
+    std::cout << "Integer 0 < M < 10 is the desired M connectivity" << std::endl;
+    std::cout << "K migth be the pair K,M in the format (K{k}M{m}). In this case M is optional" << std::endl;
     exit(0);
 }
 
 
 int main(int argc, char* const argv[]) {
-    if (argc < 4) { help(); }
+    if (argc < 2) { help(); }
 
     // Registers the signal handlers
     signal(SIGINT, exit_signal_handler);
@@ -109,27 +118,35 @@ int main(int argc, char* const argv[]) {
 
     // Buffers
     int k, m, poi;
-    std::string serialized_instance;
+    std::string serialized_instance, alt_k;
     std::unordered_set<int> emptyset, used_installation_spots, seed_sensors;
 
     /* Parse base Arguments
-     * KCMC K and M parameters
      * Serialized KCMC Instance (will be immediately de-serialized
-     * Weights for the 3 optimization objectives of Gupta (2015)
+     * KCMC K and M parameters
      * */
-    k = std::stoi(argv[1]);
-    m = std::stoi(argv[2]);
-    auto *instance = new KCMC_Instance(argv[3]);
+    auto *instance = new KCMC_Instance(argv[1]);
+    alt_k = argv[2];
+    std::transform(alt_k.begin(), alt_k.end(),alt_k.begin(), ::toupper);
+    char p[alt_k.size()];
+    strcpy(p, alt_k.c_str());
+    if (alt_k.find('K') != std::string::npos) {
+        k = ((int)p[2]) - ((int)'0');  // ONLY FOR K,M < 10!!!
+        m = ((int)p[4]) - ((int)'0');  // ONLY FOR K,M < 10!!!
+    } else {
+        k = std::stoi(argv[2]);
+        m = std::stoi(argv[3]);
+    }
 
     // Print the header
-    printf("Operation\tRuntime\tObjective\tSolution\n");
+    // printf("Key\tOperation\tRuntime\tObjective\tQuality\tSolution\n");
 
     // Validate the whole instance, getting the first local optima
     auto start = std::chrono::high_resolution_clock::now();
     instance->local_optima(k, m, emptyset, &used_installation_spots);
     auto end = std::chrono::high_resolution_clock::now();
     long duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    printout_short(instance->num_sensors, "local_optima", duration, used_installation_spots);
+    printout_short(instance->key(), instance->num_sensors, "local_optima", duration, used_installation_spots);
     used_installation_spots.clear();
 
     // Process the Directed Breadth-First Search as a local optima, using the poi-covering sensors as seed
@@ -142,7 +159,7 @@ int main(int argc, char* const argv[]) {
     instance->directed_bfs(seed_sensors, emptyset, &used_installation_spots);
     end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    printout_short(instance->num_sensors, "dbfs", duration, used_installation_spots);
+    printout_short(instance->key(), instance->num_sensors, "directed_bfs", duration, used_installation_spots);
 
     return 0;
 }

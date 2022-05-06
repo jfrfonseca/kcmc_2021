@@ -148,6 +148,7 @@ class KCMC_Instance {
         int directed_bfs(std::unordered_set<int> &seed_sensors, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *visited_sensors);
 
     private:
+        void regenerate();
         int parse_edge(int stage, const std::string& token);
         int level_graph(int level_graph[], std::unordered_set<int> &inactive_sensors);
         int find_path(int poi_number, std::unordered_set<int> &used_sensors,

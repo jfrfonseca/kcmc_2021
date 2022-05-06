@@ -184,6 +184,81 @@ void push(std::unordered_map<int, std::unordered_set<int>> &buffer, const int so
  */
 
 
+/** RANDOM-INSTANCE (RE)GENERATOR
+ * Generates the instance's placements and edges, assuming the instance already have all main attributes
+ */
+void KCMC_Instance::regenerate() {
+    /** Random-instance (re)generator
+     * This constructor is used only to generate a new random instance that already has the seed attributes
+     */
+
+    // Iteration buffers
+    int i, j;
+
+    // Prepare the placement buffers. The scope of these buffers is only the constructor itself
+    Placement pl_pois[this->num_pois], pl_sensors[this->num_sensors], pl_sinks[this->num_sinks];
+
+    // Prepare the random number generators
+    std::mt19937 gen(this->random_seed);
+    std::uniform_real_distribution<> point(0, this->area_side);
+
+    // Set the POIs buffers
+    for (i=0; i<this->num_pois; i++) {
+        Node a_poi = {tPOI, i};
+        this->poi.push_back(a_poi);
+        pl_pois[i] = {&a_poi, (int)(point(gen)), (int)(point(gen))};
+    }
+
+    // Set the SENSORs buffers
+    for (i=0; i<this->num_sensors; i++) {
+        Node a_sensor = {tSENSOR, i};
+        this->sensor.push_back(a_sensor);
+        pl_sensors[i] = {&a_sensor, (int)(point(gen)), (int)(point(gen))};
+    }
+
+    // Set the SINKs buffers (if there is a single sink, it will be at the center of the area)
+    if (this->num_sinks == 1) {
+        Node a_sink = {tSINK, 0};
+        this->sink.push_back(a_sink);
+        pl_sinks[0] = {&a_sink, (int)(this->area_side / 2.0), (int)(this->area_side / 2.0)};
+    } else {
+        for (i=0; i<this->num_sinks; i++) {
+            Node a_sink = {tSINK, i};
+            this->sink.push_back(a_sink);
+            pl_sinks[i] = {&a_sink, (int)(point(gen)), (int)(point(gen))};
+        }
+    }
+
+    // Iterate each sensor and find its connections
+    for (i=0; i<this->num_sensors; i++) {
+
+        // Iterate each POI, identifying sensor-poi coverage
+        for (j=0; j < this->num_pois; j++) {
+            if (distance(pl_sensors[i], pl_pois[j]) <= this->sensor_coverage_radius) {
+                push(this->poi_sensor, j, i);
+            }
+        }
+
+        // Verify if the sensor can connect to a SINK
+        for (j=0; j<this->num_sinks; j++) {
+            if (distance(pl_sensors[i], pl_sinks[j]) <= this->sensor_communication_radius) {
+                push(this->sensor_sink, i, j);  // Symetric communication between sink and sensors
+                push(this->sink_sensor, j, i);  // Symetric communication between sink and sensors
+            }
+        }
+
+        // Iterate each further sensor, identifying connections between sensors
+        for (j=i+1; j < this->num_sensors; j++) {
+            if (distance(pl_sensors[i], pl_sensors[j]) <= this->sensor_communication_radius) {
+                push(this->sensor_sensor, i, j);  // Symetric communication between sensors
+                push(this->sensor_sensor, j, i);  // Symetric communication between sensors
+            }
+        }
+    }
+    // From here on, the placement buffers are no longer needed
+}
+
+
 /** RANDOM-INSTANCE GENERATOR CONSTRUCTOR
  * Constructor of a random KCMC instance object
  */
@@ -194,9 +269,6 @@ KCMC_Instance::KCMC_Instance(int num_pois, int num_sensors, int num_sinks,
      * This constructor is used only to generate a new random instance
      */
 
-    // Iteration buffers
-    int i, j;
-
     // Copy the variables
     this->num_pois = num_pois;
     this->num_sensors = num_sensors;
@@ -206,67 +278,8 @@ KCMC_Instance::KCMC_Instance(int num_pois, int num_sensors, int num_sinks,
     this->sensor_communication_radius = communication_radius;
     this->random_seed = random_seed;
 
-    // Prepare the placement buffers. The scope of these buffers is only the constructor itself
-    Placement pl_pois[num_pois], pl_sensors[num_sensors], pl_sinks[num_sinks];
-
-    // Prepare the random number generators
-    std::mt19937 gen(random_seed);
-    std::uniform_real_distribution<> point(0, area_side);
-
-    // Set the POIs buffers
-    for (i=0; i<num_pois; i++) {
-        Node a_poi = {tPOI, i};
-        this->poi.push_back(a_poi);
-        pl_pois[i] = {&a_poi, (int)(point(gen)), (int)(point(gen))};
-    }
-
-    // Set the SENSORs buffers
-    for (i=0; i<num_sensors; i++) {
-        Node a_sensor = {tSENSOR, i};
-        this->sensor.push_back(a_sensor);
-        pl_sensors[i] = {&a_sensor, (int)(point(gen)), (int)(point(gen))};
-    }
-
-    // Set the SINKs buffers (if there is a single sink, it will be at the center of the area)
-    if (num_sinks == 1) {
-        Node a_sink = {tSINK, 0};
-        this->sink.push_back(a_sink);
-        pl_sinks[0] = {&a_sink, (int)(area_side / 2.0), (int)(area_side / 2.0)};
-    } else {
-        for (i=0; i<num_sinks; i++) {
-            Node a_sink = {tSINK, i};
-            this->sink.push_back(a_sink);
-            pl_sinks[i] = {&a_sink, (int)(point(gen)), (int)(point(gen))};
-        }
-    }
-
-    // Iterate each sensor and find its connections
-    for (i=0; i<num_sensors; i++) {
-
-        // Iterate each POI, identifying sensor-poi coverage
-        for (j=0; j < this->num_pois; j++) {
-            if (distance(pl_sensors[i], pl_pois[j]) <= coverage_radius) {
-                push(this->poi_sensor, j, i);
-            }
-        }
-
-        // Verify if the sensor can connect to a SINK
-        for (j=0; j<this->num_sinks; j++) {
-            if (distance(pl_sensors[i], pl_sinks[j]) <= communication_radius) {
-                push(this->sensor_sink, i, j);  // Symetric communication between sink and sensors
-                push(this->sink_sensor, j, i);  // Symetric communication between sink and sensors
-            }
-        }
-
-        // Iterate each further sensor, identifying connections between sensors
-        for (j=i+1; j < this->num_sensors; j++) {
-            if (distance(pl_sensors[i], pl_sensors[j]) <= communication_radius) {
-                push(this->sensor_sensor, i, j);  // Symetric communication between sensors
-                push(this->sensor_sensor, j, i);  // Symetric communication between sensors
-            }
-        }
-    }
-    // From here on, the placement buffers are no longer needed
+    // Now that we have the main attributes, we can (re)generate the instance
+    this->regenerate();
 }
 
 
@@ -281,7 +294,7 @@ KCMC_Instance::KCMC_Instance(const std::string& serialized_kcmc_instance) {
     // Iterate the string, looking for tokens
     size_t previous = 0, pos = 0;
     std::string token;
-    int stage = 0;
+    int stage = 0, has_edges = 0;
     while ((pos = serialized_kcmc_instance.find(';', previous)) != std::string::npos) {
         token = serialized_kcmc_instance.substr(previous, pos-previous);
         std::stringstream s_token(token);
@@ -310,18 +323,22 @@ KCMC_Instance::KCMC_Instance(const std::string& serialized_kcmc_instance) {
                 break;
             case 4:
                 // FIRST-STAGE PARSER
+                has_edges = 1;
                 stage = this->parse_edge(stage, token);
                 break;
             case 5:
                 // POI-SENSOR (PS) STAGE
+                has_edges = 1;
                 stage = this->parse_edge(stage, token);
                 break;
             case 6:
                 // SENSOR-SENSOR (SS) STAGE
+                has_edges = 1;
                 stage = this->parse_edge(stage, token);
                 break;
             case 7:
                 // SENSOR-SINK (SK) STAGE
+                has_edges = 1;
                 stage = this->parse_edge(stage, token);
                 break;
             case 8:
@@ -334,6 +351,9 @@ KCMC_Instance::KCMC_Instance(const std::string& serialized_kcmc_instance) {
     if (this->num_pois == 0) {throw std::runtime_error("INSTANCE HAS NO POIS!");}
     if (this->num_sensors == 0) {throw std::runtime_error("INSTANCE HAS NO SENSORS!");}
     if (this->num_sinks == 0) {throw std::runtime_error("INSTANCE HAS NO SINKS!");}
+
+    // If we got here and have no edges, we must re-generate this instance
+    if (has_edges == 0) { this->regenerate(); }
 }
 
 

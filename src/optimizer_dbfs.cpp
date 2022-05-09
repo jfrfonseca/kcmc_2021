@@ -66,7 +66,8 @@ int KCMC_Instance::directed_bfs(std::unordered_set<int> &seed_sensors,
  * The "flooded" version of path A is a set of sensors that contains, for each connected triple ix-1, ix, ix+1 in A,
  * all sensors that connect both to ix-1 and ix+1. At the starting edge of A, ix-1 is P. At the end edge of A, ix+1 is S
  */
-int KCMC_Instance::flood_dinic(const int k, const int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *result_buffer) {
+int KCMC_Instance::flood_dinic(const int k, const int m, const bool full,
+                               std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *result_buffer) {
 
     // Base case
     if (m < 1){return -1;}
@@ -74,7 +75,7 @@ int KCMC_Instance::flood_dinic(const int k, const int m, std::unordered_set<int>
     // Create the level graph, loop controls and buffers
     bool break_loop;
     int level_graph[this->num_sensors], predecessors[this->num_sensors],
-        paths_found, path_end, a_poi, path_length, last_path_length, previous, next_i,
+        paths_found, path_end, a_poi, path_length, longest_required_path_length, previous, next_i,
         total_paths_found = 0;
 
     // Update the level graph
@@ -102,7 +103,7 @@ int KCMC_Instance::flood_dinic(const int k, const int m, std::unordered_set<int>
     for (a_poi=0; a_poi < this->num_pois; a_poi++) {
         break_loop = false;  // Mark the loop for processing
         paths_found = 0;  // Clear the number of paths found for the POI
-        last_path_length = 0; // reset the stored length of the last found path
+        longest_required_path_length = 0; // reset the stored length of the last found path
         used_sensors = inactive_sensors;  // Reset the set of used sensors for each POI
 
         // While the stopping criteria was not found
@@ -183,9 +184,20 @@ int KCMC_Instance::flood_dinic(const int k, const int m, std::unordered_set<int>
                     path_end = previous;
                 }
 
-                // If we have enough paths, but the current is no larger than the last, continue the loop. Otherwise stop
-                if (paths_found <= m) { last_path_length = path_length; }
-                if (path_length > last_path_length) { break_loop = true; }
+                /* FULL version:
+                 * If we have enough paths, but the current is no larger than the last, continue the loop.
+                 * MIN version:
+                 * Stop as soon as we get M paths for this POI
+                 */
+                if (full) {
+                    if (paths_found <= m) {
+                        longest_required_path_length = (path_length > longest_required_path_length) ? path_length : longest_required_path_length;
+                    }
+                    if (path_length > longest_required_path_length) { break_loop = true; }
+                } else {
+                    longest_required_path_length = path_length;
+                    if (paths_found == m) { break_loop = true; }
+                }
             }
         }
     }
@@ -301,11 +313,21 @@ int main(int argc, char* const argv[]) {
 
     // Process the Flood-Dinic mapping of the instance
     start = std::chrono::high_resolution_clock::now();
-    poi = instance->flood_dinic(k, m, emptyset, &used_installation_spots);
+    poi = instance->flood_dinic(k, m, false, emptyset, &used_installation_spots);
     end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     printout_short(instance->key(), k, m, instance->num_sensors,
-                   "f_dinic_"+std::to_string(poi),  // Add the number of paths found
+                   "mf_dinic_"+std::to_string(poi),  // Add the number of paths found
+                   duration, used_installation_spots);
+    used_installation_spots.clear();
+
+    // Process the Flood-Dinic mapping of the instance
+    start = std::chrono::high_resolution_clock::now();
+    poi = instance->flood_dinic(k, m, true, emptyset, &used_installation_spots);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    printout_short(instance->key(), k, m, instance->num_sensors,
+                   "ff_dinic_"+std::to_string(poi),  // Add the number of paths found
                    duration, used_installation_spots);
     used_installation_spots.clear();
 

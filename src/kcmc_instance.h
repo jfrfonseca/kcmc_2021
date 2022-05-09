@@ -146,6 +146,7 @@ class KCMC_Instance {
 
         int local_optima(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *all_used_sensors);
         int directed_bfs(std::unordered_set<int> &seed_sensors, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *visited_sensors);
+        int flood_dinic(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *visited_sensors);
 
     private:
         void regenerate();

@@ -262,7 +262,7 @@ void help() {
 
 
 int main(int argc, char* const argv[]) {
-    if (argc < 2) { help(); }
+    if (argc < 4) { help(); }
 
     // Registers the signal handlers
     signal(SIGINT, exit_signal_handler);
@@ -293,7 +293,7 @@ int main(int argc, char* const argv[]) {
         k = std::stoi(argv[2]);
         m = std::stoi(argv[3]);
     }
-    selected_method = (argc > 3) ? argv[4] : "";
+    if (argc > 4) { selected_method = argv[4]; } else { selected_method = ""; }
 
     // Prepare the clock buffers
     auto start = std::chrono::high_resolution_clock::now();
@@ -301,7 +301,7 @@ int main(int argc, char* const argv[]) {
     long duration;
 
     // Print the header
-    // printf("Key\tK\tM\tOperation\tRuntime\tObjective\tCompression\tSolution\n");
+    // printf("Key\tK\tM\tOperation\tRuntime\tValid\tObjective\tCompression\tSolution\n");
 
     // Validate the whole instance, getting the first local optima
     if (selected_method.empty() or std::equal(selected_method.begin(), selected_method.end(), "local_optima")) {

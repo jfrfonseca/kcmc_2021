@@ -2,8 +2,6 @@ version: "3.9"
 
 services:
 
-  # FUNCTIONAL SERVICES =======================================================
-
   compiler:
     # Dockerized compiler environment
     profiles:
@@ -29,96 +27,31 @@ services:
       - ./data:/data:rw
       - ./src:/src:ro
 
-  dynamodb-local:
-    # Local document database for development
+  preprocessor:
     profiles:
-      - pump
-      - gurobi-local
-    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data"
-    image: "amazon/dynamodb-local:latest"
-    container_name: dynamodb-local
-    ports:
-      - "8000:8000"
-    volumes:
-      - "./data/dynamodb:/home/dynamodblocal/data:rw"
-    working_dir: /home/dynamodblocal
-
-  pump:
-    # Send instances for cloud processing
-    profiles:
-      - pump
+      - preprocessor
     build:
       dockerfile: gurobi.dockerfile
       context: .
-    command: "python -u /home/gurobi/src/instances_pump.py -i /data/instances.csv --release_locks"
-    environment:
-      PYTHONPATH: "/home/gurobi/src"
-      AWS_DEFAULT_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: ${AWS_SECRET_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-    volumes:
-      - ./data:/data:rw
-      - ./src:/home/gurobi/src:ro
-    depends_on:
-      dynamodb-local:
-        condition: service_started
-
-  gurobi-local-dev:
-    # Local processing of optimizer, for development
-    profiles:
-      - gurobi-local
-    build:
-      dockerfile: gurobi.dockerfile
-      context: .
-    command: "python -u /home/gurobi/src/gurobi_optimizer.py -l 5 -t 1 --local_dynamodb"
+    entrypoint: bash
+    command: "/home/gurobi/src/run_optimizer_dinic.sh"
     environment:
       GRB_CLIENT_LOG: 3
       PYTHONPATH: "/home/gurobi/src"
-      AWS_DEFAULT_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: ${AWS_SECRET_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     volumes:
-      - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
       - ./data:/data:ro
       - ./src:/home/gurobi/src:ro
-      - ./analysis/results/local_dynamodb_objects:/tmp/dynamodb_objects:rw
-    depends_on:
-      dynamodb-local:
-        condition: service_started
-    deploy:
-      mode: replicated
-      replicas: 2
-
-  # PAYLOAD SERVICES ==========================================================
-
-  gurobi:
-    # Cloud processing of gurobi solver at scale
-    profiles:
-      - gurobi
-    build:
-      dockerfile: gurobi.dockerfile
-      context: .
-    command: "python -u /home/gurobi/src/gurobi_optimizer.py -l 3600 -t 1"
-    environment:
-      GRB_CLIENT_LOG: 3
-      PYTHONPATH: "/home/gurobi/src"
-      AWS_DEFAULT_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: ${AWS_SECRET_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-    volumes:
-      - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
-      - ./data:/data:ro
-      - ./src:/home/gurobi/src:ro
+      - ./analysis/results/preprocessor:/results:rw
+      - ./builds:/app:ro
 
   optimizer:
-    # Custom headless optimizer
     profiles:
+      - gurobi
       - optimizer
     build:
       dockerfile: gurobi.dockerfile
       context: .
-    entrypoint: 'bash'
-    command: '/home/gurobi/src/run_optimizer_dinic.sh'
+    command: "python -u /home/gurobi/src/gurobi_optimizer.py --instances_file /data/instances.10.csv --results s3://kcmc-heuristic/2022-05"
     environment:
       GRB_CLIENT_LOG: 3
       PYTHONPATH: "/home/gurobi/src"
@@ -128,11 +61,9 @@ services:
     volumes:
       - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
       - ./data:/data:ro
-      - ./analysis/results/optimizer:/results:rw
       - ./src:/home/gurobi/src:ro
+      - ./analysis/results/optimizer:/results:rw
       - ./builds:/app:ro
-
-  # DATA VISUALIZATION AND ANALYSIS SERVICES ==================================
 
   notebook:
     profiles:

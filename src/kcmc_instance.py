@@ -42,6 +42,43 @@ def get_serialized_instance(pois, sensors, sinks, area_side, sensor_coverage_rad
     return stdout.decode().strip().splitlines()[0].strip()
 
 
+# Get the regenerated instance from its key using the C++ interface
+def get_preprocessing(pois, sensors, sinks, area_side, sensor_coverage_radius, sensor_communication_radius, random_seed,
+                      kcmc_k, kcmc_m, executable='/app/optimizer_dinic'):
+
+    # Run the C++ package
+    out = subprocess.Popen(
+        list(map(str, [
+            executable,
+            f'KCMC;{pois} {sensors} {sinks}; {area_side} {sensor_coverage_radius} {sensor_communication_radius};{random_seed};END',
+            kcmc_k, kcmc_m
+        ])),
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
+
+    # Parse the results
+    stdout,stderr = out.communicate()
+    assert stderr is None, f'ERROR ON THE INSTANCE REGENERATOR.\nSTDOUT:{stdout}\n\nSTDERR:{stderr}'
+    result = {}
+    for line in stdout.decode().strip().splitlines():
+        item = dict(zip(['method', 'runtime_us', 'valid_result', 'num_used_sensors', 'compression_rate', 'solution'],
+                        line.lower().strip().split('\t')[3:]))
+
+        # Normalize the item key
+        key = item.pop('method').replace('mf_dinic', 'minimal_flood_dinic').replace('ff_dinic', 'full_flood_dinic')
+        if 'dinic' in key:
+            key, num_paths = key.rsplit('_', 1)
+            item['num_paths'] = int(num_paths)
+
+        # Normalize the values and store
+        item['valid_result'] = item['valid_result'] == 'OK'
+        item['runtime_us'] = int(item['runtime_us'])
+        item['num_used_sensors'] = int(item['num_used_sensors'])
+        item['compression_rate'] = float(item['compression_rate'])
+        result[key] = item
+    return result
+
+
 class KCMC_Instance(object):
 
     color_dict = {
@@ -57,9 +94,10 @@ class KCMC_Instance(object):
 
     def __repr__(self): return f'<{self.key_str} {self.random_seed} [{len(self.virtual_sinks)}]>'
 
-    def parse_serialized_instance(self, instance_string:str):
+    def parse_serialized_instance(self, instance_string:str, inactive_sensors=None):
 
         self.string = instance_string.upper().strip()
+        if inactive_sensors is None: inactive_sensors = set()
 
         assert self.string.startswith('KCMC;'), 'ALL INSTANCES MUST START WITH THE TAG <KCMC;>'
         assert self.string.endswith(';END'), 'ALL INSTANCES MUST END WITH THE TAG <;END>'
@@ -83,6 +121,8 @@ class KCMC_Instance(object):
         except Exception as exp: raise AssertionError('INVALID INSTANCE PREAMBLE!')
 
         # Prepare the buffers
+        self.inactive_sensors = inactive_sensors
+        self._prep = None
         self._placements = None
         self.poi_sensor = {}
         self.sensor_poi = {}
@@ -102,6 +142,7 @@ class KCMC_Instance(object):
                 raise AssertionError(f'INVALID TAG PARSING AT TOKEN {i+4} - {token}')
 
             alpha, beta = map(int, token.strip().split(' '))
+            if len({alpha, beta}.intersection(inactive_sensors)) > 0: continue  # Skip inactive sensors
             if tag == 'PI':
                 is_expanded = True
                 self._add_to(self.edges, f'p{alpha}', f'i{beta}')
@@ -126,12 +167,17 @@ class KCMC_Instance(object):
                 self.num_pois, self.num_sensors, self.num_sinks,
                 self.area_side, self.sensor_coverage_radius, self.sensor_communication_radius,
                 self.random_seed
-            ))
+            ), inactive_sensors)
 
-    def __init__(self, instance_string:str, accept_loose_pois=False, accept_loose_sensors=False, accept_loose_sinks=False):
+    def __init__(self, instance_string:str,
+                 accept_loose_pois=False,
+                 accept_loose_sensors=False,
+                 accept_loose_sinks=False,
+                 inactive_sensors=None):
+        self.acceptance = (accept_loose_pois, accept_loose_sensors, accept_loose_sinks)
 
         # Parse the serialized instance
-        self.parse_serialized_instance(instance_string)
+        self.parse_serialized_instance(instance_string, inactive_sensors)
 
         # Reading validations
         assert max(self.poi_sensor.keys()) < self.num_pois, f'INVALID POI IDs! {[p for p in self.poi_sensor.keys() if p > self.num_pois]}'
@@ -155,7 +201,8 @@ class KCMC_Instance(object):
 
     @property
     def key_str(self) -> str:
-        return ':'.join([f'KCMC_{self.version}'] + list(map(str, self.key)))
+        p,i,s, a,cv,cm, = self.key
+        return f'KCMC;{p} {i} {s};{a} {cv} {cm};{self.random_seed};END'
 
     @property
     def is_single_sink(self) -> bool: return self.num_sinks == 1
@@ -268,6 +315,25 @@ class KCMC_Instance(object):
         return self._placements.copy()
 
     # SERVICES #########################################################################################################
+
+    def preprocess(self, k, m, prep_method:str, raw=True):
+
+        # Memoize the preprocessing
+        if self._prep is None:
+            self._prep = get_preprocessing(
+                self.num_pois, self.num_sensors, self.num_sinks,
+                self.area_side, self.sensor_coverage_radius, self.sensor_communication_radius,
+                self.random_seed, k, m
+            )
+
+
+        # Return the raw result if required
+        if raw: return self._prep[prep_method]
+
+        # Parse the raw result as a new instance
+        inactive_sensors = {f'i{i}' for i in self._prep[prep_method]['solution'] if i == '1'}
+        return KCMC_Instance(self.key_str, *self.acceptance, inactive_sensors=inactive_sensors)
+
 
     @staticmethod
     def _add_to(_dict:dict, key, value):

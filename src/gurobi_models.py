@@ -5,6 +5,7 @@ GUROBI Single-Flow and Multi-Flow ILP Model Objects Factory
 
 import time
 import zlib
+import json
 import base64
 from typing import Any
 
@@ -104,7 +105,7 @@ class GurobiModelWrapper(object):
         return zlib.decompress(base64.b64decode(str_input.encode('ascii'))).decode('utf-8')
 
     # Results Wrapper
-    def optimize(self):
+    def optimize(self, compress_variables=False):
         if self.results is not None: return self.results.copy()
 
         # Run the execution
@@ -135,7 +136,7 @@ class GurobiModelWrapper(object):
             'solutions_count': self.model.SolCount,
             'node_count': self.model.NodeCount,
             'simplex_iterations_count': self.model.IterCount,
-            'json_solution': self.model.getJSONSolution(),
+            'json_solution': json.loads(self.model.getJSONSolution()),
             'variables': {
                 name: {str(k): (v.X if self.model.SolCount > 0
                                     else (v.Xn[0] if hasattr(v, 'Xn') else None))
@@ -143,6 +144,10 @@ class GurobiModelWrapper(object):
                 for name, var in self.solution_variables.items()
             }
         }
+        self.results['objective_value'] = self.results['json_solution']['SolutionInfo']['ObjVal']
+        if compress_variables:
+            self.results['variables'] = {name: self.compress(json.dumps(val))
+                                         for name, val in self.results['variables'].items()}
 
         return self.results.copy()
 

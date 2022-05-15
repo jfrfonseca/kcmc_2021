@@ -51,7 +51,7 @@ services:
     build:
       dockerfile: gurobi.dockerfile
       context: .
-    command: "python -u /home/gurobi/src/gurobi_optimizer.py --results s3://kcmc-heuristic/2022-05 --lock KCMC_LOCK --instances_file /data/instances.50.csv "
+    command: "python -u /home/gurobi/src/gurobi_optimizer.py --results s3://kcmc-heuristic/2022-05 --lock KCMC --instances_file /data/instances.50.csv "
     environment:
       GRB_CLIENT_LOG: 3
       PYTHONPATH: "/home/gurobi/src"

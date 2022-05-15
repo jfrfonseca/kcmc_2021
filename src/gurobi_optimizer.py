@@ -84,7 +84,7 @@ if __name__ == '__main__':
             response = dynamo_cli.describe_table(TableName=lock_table)
         except dynamo_cli.exceptions.ResourceNotFoundException:
             DynamoDBLockClient.create_dynamodb_table(dynamo_cli, table_name=lock_table)
-        lock_client = DynamoDBLockClient(dynamo, table_name=lock_table)
+        lock_client = DynamoDBLockClient(dynamo, table_name=lock_table)  # TTL by default: 1 hour
 
     # Parse the models
     if args.models is None: models = MODELS_LIST

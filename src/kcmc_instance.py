@@ -142,19 +142,21 @@ class KCMC_Instance(object):
                 raise AssertionError(f'INVALID TAG PARSING AT TOKEN {i+4} - {token}')
 
             alpha, beta = map(int, token.strip().split(' '))
-            if len({alpha, beta}.intersection(inactive_sensors)) > 0: continue  # Skip inactive sensors
             if tag == 'PI':
+                if f'i{beta}' in inactive_sensors: continue  # Skip inactive sensors
                 is_expanded = True
                 self._add_to(self.edges, f'p{alpha}', f'i{beta}')
                 self._add_to(self.poi_sensor, alpha, beta)
                 self._add_to(self.sensor_poi, beta, alpha)
             elif tag == 'II':
-                is_expanded = True
                 assert alpha != beta,  "SELF-DIRECTED EDGES ARE NOT SUPPORTED"
+                if len({f'i{alpha}', f'i{beta}'}.intersection(inactive_sensors)) > 0: continue  # Skip inactive sensors
+                is_expanded = True
                 self._add_to(self.edges, f'i{alpha}', f'i{beta}')
                 self._add_to(self.sensor_sensor, alpha, beta)
                 self._add_to(self.sensor_sensor, beta, alpha)
             elif tag == 'IS':
+                if f'i{alpha}' in inactive_sensors: continue  # Skip inactive sensors
                 is_expanded = True
                 self._add_to(self.edges, f'i{alpha}', f's{beta}')
                 self._add_to(self.sensor_sink, alpha, beta)
@@ -217,7 +219,7 @@ class KCMC_Instance(object):
     def poi_edges(self) -> List[Tuple[str, str]]: return [(f'p{p}', f'i{i}') for p, sensors in self.poi_sensor.items() for i in sensors]
 
     @property
-    def sensors(self) -> List[str]: return [f'i{s}' for s in range(0, self.num_sensors) if f'i{s}' not in self.connected_sensors]
+    def sensors(self) -> List[str]: return sorted(list(self.sensor_degree.keys()))
 
     @property
     def sensor_degree(self) -> Dict[str, int]: return {f'i{p}': len(i) for p, i in self.sensor_sensor.items()}
@@ -286,29 +288,6 @@ class KCMC_Instance(object):
     def communication_graph(self) -> Dict[str, Set[str]]: return {f'i{i}': set([f'i{p}' for p in sensors]) for i, sensors in self.sensor_sensor.items()}
 
     @property
-    def disposable_sensors(self) -> Set[str]:
-        # We consider DISPOSABLE all sensors that fill ALL this criteria:
-        # - Do not connects to at least two other sensors
-        # - Do not connects to at least one POI
-        # - Do not connects to at least sink (direct-bridge sensors)
-        if not hasattr(self, '_disposable_sensors'):
-            self._disposable_sensors = {f'i{i}' for i in range(self.num_sensors)
-                                        if all([len(self.sensor_sensor.get(i, [])) < 2,
-                                                i not in self.sensor_poi,
-                                                i not in self.sensor_sink])}
-        return self._disposable_sensors
-
-    @property
-    def connected_sensors(self) -> Set[str]:
-        # Sensors that have at least one connection to some other component
-        if not hasattr(self, '_connected_sensors'):
-            self._connected_sensors = {f'i{i}' for i in range(self.num_sensors)
-                                        if all([i not in self.sensor_sensor,
-                                                i not in self.sensor_poi,
-                                                i not in self.sensor_sink])}
-        return self._connected_sensors
-
-    @property
     def placements(self):
         if self._placements is None:
             self._placements = get_placements(self.num_pois, self.num_sensors, self.num_sinks, self.area_side, self.random_seed)
@@ -326,12 +305,11 @@ class KCMC_Instance(object):
                 self.random_seed, k, m
             )
 
-
         # Return the raw result if required
         if raw: return self._prep[prep_method]
 
         # Parse the raw result as a new instance
-        inactive_sensors = {f'i{i}' for i in self._prep[prep_method]['solution'] if i == '1'}
+        inactive_sensors = {f'i{j}' for j,i in enumerate(self._prep[prep_method]['solution']) if i == '0'}
         return KCMC_Instance(self.key_str, *self.acceptance, inactive_sensors=inactive_sensors)
 
 

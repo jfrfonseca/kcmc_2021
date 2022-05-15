@@ -170,13 +170,14 @@ if __name__ == '__main__':
             prep_stage, main_stage = model_name.split('__')
             new_instance = instance.preprocess(kcmc_k, kcmc_m, prep_stage, raw=False)
             preprocessing = instance._prep.copy()
-            instance = new_instance
 
             # Notify the PRE processing of the instance
-
             print(f'\tPREPROCESSING {prep_stage}'
-                  f' | {len(instance.sensors)-len(instance.inactive_sensors)}'
-                  f' | {round(len(instance.inactive_sensors)*100.0 / len(instance.sensors), 3)}%')
+                  f' | {len(new_instance.sensors)}'
+                  f' | {round(len(new_instance.inactive_sensors)*100.0 / len(instance.sensors), 3)}%')
+
+            # Update the referred instance
+            instance = new_instance
 
         else:
             prep_stage = ''

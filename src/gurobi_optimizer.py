@@ -168,7 +168,9 @@ if __name__ == '__main__':
         # If the model has a preprocessing stage, preprocess it
         if '__' in model_name:
             prep_stage, main_stage = model_name.split('__')
-            instance = instance.preprocess(kcmc_k, kcmc_m, prep_stage, raw=False)
+            new_instance = instance.preprocess(kcmc_k, kcmc_m, prep_stage, raw=False)
+            preprocessing = instance._prep.copy()
+            instance = new_instance
 
             # Notify the PRE processing of the instance
 
@@ -179,6 +181,7 @@ if __name__ == '__main__':
         else:
             prep_stage = ''
             main_stage = model_name
+            preprocessing = {}
 
         # Execute the main stage
         if main_stage.startswith('gurobi'):
@@ -217,7 +220,7 @@ if __name__ == '__main__':
             'time_limit': time_limit, 'threads': threads,
             'coverage_density': instance.coverage_density,
             'communication_density': instance.communication_density,
-            'preprocessing': instance._prep
+            'preprocessing': preprocessing
         })
 
         # Store the results

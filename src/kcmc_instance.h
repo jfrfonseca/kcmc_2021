@@ -120,9 +120,17 @@ class KCMC_Instance {
         /* Instance basic services
          * Get the KEY of the current instance
          * Serialize the current instance as a string
+         * Invert a set of sensors (get every sensor in the instance not in the set)
+         * Validate the instance, raising errors if invalid. Some arguments are optional
          */
         std::string key() const;
         std::string serialize();
+        int invert_set(std::unordered_set<int> &source_set, std::unordered_set<int> *target_set);
+        bool validate(bool raise, int k, int m);
+        bool validate(bool raise, int k, int m, std::unordered_set<int> &inactive_sensors);
+        bool validate(bool raise, int k, int m, std::unordered_set<int> &inactive_sensors,
+                      std::unordered_set<int> *k_used_sensors,
+                      std::unordered_set<int> *m_used_sensors);
 
         /* Instance problem-specific methods
          * Get the Degree of each Sensor in the instance

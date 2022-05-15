@@ -241,14 +241,10 @@ int KCMC_Instance::get_connectivity(int buffer[], std::unordered_set<int> &inact
 int KCMC_Instance::local_optima(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *result_buffer) {
 
     // Prepare buffers
-    int valid;
     std::unordered_set<int> k_used_sensors, m_used_sensors, all_used_sensors;
 
     // Check validity, recovering the used sensors for K coverage and M connectivity
-    valid = this->fast_k_coverage(k, inactive_sensors, &k_used_sensors);
-    if (valid != -1) {throw std::runtime_error("INVALID INSTANCE! (INSUFFICIENT COVERAGE)");}
-    valid = this->fast_m_connectivity(m, inactive_sensors, &m_used_sensors);
-    if (valid != -1) {throw std::runtime_error("INVALID INSTANCE! (INSUFFICIENT CONNECTIVITY)");}
+    this->validate(true, k, m, inactive_sensors, &k_used_sensors, &m_used_sensors);
 
     // Store the used sensors in the given buffer
     all_used_sensors = set_merge(k_used_sensors, m_used_sensors);

@@ -13,7 +13,7 @@ from datetime import timedelta
 import boto3
 
 # Auxiliary packages
-from dynamodb_lock import DynamoDBLockClient, DynamoDBLockError
+from python_dynamodb_lock.python_dynamodb_lock import DynamoDBLockClient, DynamoDBLockError
 
 # Payload packages
 from kcmc_instance import KCMC_Instance
@@ -41,8 +41,8 @@ def acquire_lock(lock_client:DynamoDBLockClient, lock_string:str) -> MockLockObj
     try:
         lock = lock_client.acquire_lock(
             lock_string,
-            retry_timeout=timedelta(seconds=0.15),
-            retry_period=timedelta(seconds=0.1)
+            retry_timeout=timedelta(seconds=0.25),
+            retry_period=timedelta(seconds=0.20)
         )
     except DynamoDBLockError as lkerr:
         if 'timed out' in str(lkerr).lower():
@@ -77,8 +77,13 @@ if __name__ == '__main__':
     # if we have a lock table, create a DynamoDB lock object on it
     if lock_table is None: lock_client = None
     else:
+        # Create a Boto3 client; create the table if it does not exists and create a lock client
+        dynamo_cli = boto3.client('dynamodb')
         dynamo = boto3.resource('dynamodb')
-        lock_table = dynamo.Table(lock_table)
+        try:
+            response = dynamo_cli.describe_table(TableName=lock_table)
+        except dynamo_cli.exceptions.ResourceNotFoundException:
+            DynamoDBLockClient.create_dynamodb_table(dynamo_cli, table_name=lock_table)
         lock_client = DynamoDBLockClient(dynamo, table_name=lock_table)
 
     # Parse the models
@@ -181,7 +186,6 @@ if __name__ == '__main__':
             }[main_stage]
 
             # Build the model and its variables
-            os.unlink('/tmp/gurobi.log')
             model, X, Y = model_factory(kcmc_k, kcmc_m, instance, time_limit, threads, '/tmp/gurobi.log')
 
             # Run the model

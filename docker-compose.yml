@@ -117,6 +117,8 @@ services:
     build:
       dockerfile: gurobi.dockerfile
       context: .
+    entrypoint: 'bash'
+    command: '/home/gurobi/src/run_optimizer_dinic.sh'
     environment:
       GRB_CLIENT_LOG: 3
       PYTHONPATH: "/home/gurobi/src"

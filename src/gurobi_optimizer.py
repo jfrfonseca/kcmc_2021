@@ -82,8 +82,10 @@ if __name__ == '__main__':
         dynamo = boto3.resource('dynamodb')
         try:
             response = dynamo_cli.describe_table(TableName=lock_table)
-        except dynamo_cli.exceptions.ResourceNotFoundException:
-            DynamoDBLockClient.create_dynamodb_table(dynamo_cli, table_name=lock_table)
+        except Exception as exp:
+            if 'resource not found' in str(exp):
+                DynamoDBLockClient.create_dynamodb_table(dynamo_cli, table_name=lock_table)
+            else: raise exp
         lock_client = DynamoDBLockClient(dynamo, table_name=lock_table)  # TTL by default: 1 hour
 
     # Parse the models

@@ -262,7 +262,7 @@ void help() {
 
 
 int main(int argc, char* const argv[]) {
-    if (argc < 4) { help(); }
+    if (argc < 3) { help(); }
 
     // Registers the signal handlers
     signal(SIGINT, exit_signal_handler);

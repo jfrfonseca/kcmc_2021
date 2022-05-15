@@ -9,7 +9,7 @@
 
 # Filter lines with python, to avoid too-long-command-lines
 rm -f /tmp/data.csv
-cat /data/instances.10.csv | python3 -c 'import sys; [print((";".join(line.split(";", 4)[:4]))+";END\t"+(line.split("|")[-1]).strip()) for line in sys.stdin]' >> /tmp/data.csv
+cat /data/instances.csv | python3 -c 'import sys; [print((";".join(line.split(";", 4)[:4]))+";END\t"+(line.split("|")[-1]).strip()) for line in sys.stdin]' >> /tmp/data.csv
 
 # Process in parallel
 rm -f /tmp/*.par

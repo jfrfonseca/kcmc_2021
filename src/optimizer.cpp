@@ -66,8 +66,8 @@ int KCMC_Instance::directed_bfs(std::unordered_set<int> &seed_sensors,
  * The "flooded" version of path A is a set of sensors that contains, for each connected triple ix-1, ix, ix+1 in A,
  * all sensors that connect both to ix-1 and ix+1. At the starting edge of A, ix-1 is P. At the end edge of A, ix+1 is S
  */
-int KCMC_Instance::flood_dinic(const int k, const int m, const bool full,
-                               std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *result_buffer) {
+int KCMC_Instance::flood(int k, int m, bool full,
+                         std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *visited_sensors) {
 
     // Base case
     if (m < 1){return -1;}
@@ -90,12 +90,12 @@ int KCMC_Instance::flood_dinic(const int k, const int m, const bool full,
     }
 
     // Reset the results buffer
-    result_buffer->clear();
+    visited_sensors->clear();
 
     // Add all poi-covering sensors to the result buffer
     for (a_poi=0; a_poi < this->num_pois; a_poi++) {
         for (const int &a_sensor : this->poi_sensor[a_poi]) {
-            result_buffer->insert(a_sensor);
+            visited_sensors->insert(a_sensor);
         }
     }
 
@@ -143,7 +143,7 @@ int KCMC_Instance::flood_dinic(const int k, const int m, const bool full,
                     if ((previous == -1) and (next_i == -1)) {
                         for (const int &bridge: this->poi_sensor[a_poi]) {
                             if (isin(this->sensor_sink, bridge) and (not isin(inactive_sensors, bridge))) {
-                                result_buffer->insert(bridge);
+                                visited_sensors->insert(bridge);
                             }
                         }
                     } else {
@@ -153,7 +153,7 @@ int KCMC_Instance::flood_dinic(const int k, const int m, const bool full,
                         if (previous == -1) {
                             for (const int &cover: this->poi_sensor[a_poi]) {
                                 if (isin(this->sensor_sensor[cover], path_end) and (not isin(inactive_sensors, cover))) {
-                                    result_buffer->insert(cover);
+                                    visited_sensors->insert(cover);
                                 }
                             }
                         } else {
@@ -163,7 +163,7 @@ int KCMC_Instance::flood_dinic(const int k, const int m, const bool full,
                             if (next_i == -1) {
                                 for (const int &conn: this->sensor_sensor[previous]) {
                                     if (isin(this->sensor_sink, conn) and (not isin(inactive_sensors, conn))) {
-                                        result_buffer->insert(conn);
+                                        visited_sensors->insert(conn);
                                     }
                                 }
                             } else {
@@ -172,7 +172,7 @@ int KCMC_Instance::flood_dinic(const int k, const int m, const bool full,
                                  */
                                 for (const int &conn: this->sensor_sensor[previous]) {
                                     if (isin(this->sensor_sensor[conn], next_i) and (not isin(inactive_sensors, conn))) {
-                                        result_buffer->insert(conn);
+                                        visited_sensors->insert(conn);
                                     }
                                 }
                             }
@@ -304,51 +304,52 @@ int main(int argc, char* const argv[]) {
     // printf("Key\tK\tM\tOperation\tRuntime\tValid\tObjective\tCompression\tSolution\n");
 
     // Validate the whole instance, getting the first local optima
-    if (selected_method.empty() or std::equal(selected_method.begin(), selected_method.end(), "local_optima")) {
+    if (selected_method.empty() or std::equal(selected_method.begin(), selected_method.end(), "dinic")) {
         used_installation_spots.clear();
         start = std::chrono::high_resolution_clock::now();
         instance->local_optima(k, m, emptyset, &used_installation_spots);
         end = std::chrono::high_resolution_clock::now();
         duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        printout_short(instance, k, m, instance->num_sensors, "local_optima", duration, used_installation_spots);
+        printout_short(instance, k, m, instance->num_sensors, "dinic", duration, used_installation_spots);
     }
 
-    // Process the Directed Breadth-First Search as a local optima, using the poi-covering sensors as seed
-    if (selected_method.empty() or std::equal(selected_method.begin(), selected_method.end(), "directed_bfs")) {
-        for (poi=0; poi < instance->num_pois; poi++) {
-            for (const int &sensor : instance->poi_sensor[poi]) {
-                seed_sensors.insert(sensor);
-            }
-        }
-        used_installation_spots.clear();
-        start = std::chrono::high_resolution_clock::now();
-        instance->directed_bfs(seed_sensors, emptyset, &used_installation_spots);
-        end = std::chrono::high_resolution_clock::now();
-        duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        printout_short(instance, k, m, instance->num_sensors, "directed_bfs", duration, used_installation_spots);
-    }
+// Directed-BFS is not worth it. It deactivates only about 5% of all sensors!
+//    // Process the Directed Breadth-First Search as a local optima, using the poi-covering sensors as seed
+//    if (selected_method.empty() or std::equal(selected_method.begin(), selected_method.end(), "directed_bfs")) {
+//        for (poi=0; poi < instance->num_pois; poi++) {
+//            for (const int &sensor : instance->poi_sensor[poi]) {
+//                seed_sensors.insert(sensor);
+//            }
+//        }
+//        used_installation_spots.clear();
+//        start = std::chrono::high_resolution_clock::now();
+//        instance->directed_bfs(seed_sensors, emptyset, &used_installation_spots);
+//        end = std::chrono::high_resolution_clock::now();
+//        duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+//        printout_short(instance, k, m, instance->num_sensors, "directed_bfs", duration, used_installation_spots);
+//    }
 
-    // Process the Minimal-Flood Dinic mapping of the instance
-    if (selected_method.empty() or std::equal(selected_method.begin(), selected_method.end(), "mf_dinic")) {
+    // Process the Minimal-Flood mapping of the instance
+    if (selected_method.empty() or std::equal(selected_method.begin(), selected_method.end(), "min_flood")) {
         used_installation_spots.clear();
         start = std::chrono::high_resolution_clock::now();
-        poi = instance->flood_dinic(k, m, false, emptyset, &used_installation_spots);
+        poi = instance->flood(k, m, false, emptyset, &used_installation_spots);
         end = std::chrono::high_resolution_clock::now();
         duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         printout_short(instance, k, m, instance->num_sensors,
-                       "mf_dinic_" + std::to_string(poi),  // Add the number of paths found
+                       "min_flood_" + std::to_string(poi),  // Add the number of paths found
                        duration, used_installation_spots);
     }
 
-    // Process the Full-Flood Dinic mapping of the instance
-    if (selected_method.empty() or std::equal(selected_method.begin(), selected_method.end(), "ff_dinic")) {
+    // Process the Full-Flood mapping of the instance
+    if (selected_method.empty() or std::equal(selected_method.begin(), selected_method.end(), "max_flood")) {
         used_installation_spots.clear();
         start = std::chrono::high_resolution_clock::now();
-        poi = instance->flood_dinic(k, m, true, emptyset, &used_installation_spots);
+        poi = instance->flood(k, m, true, emptyset, &used_installation_spots);
         end = std::chrono::high_resolution_clock::now();
         duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         printout_short(instance, k, m, instance->num_sensors,
-                       "ff_dinic_" + std::to_string(poi),  // Add the number of paths found
+                       "max_flood_" + std::to_string(poi),  // Add the number of paths found
                        duration, used_installation_spots);
     }
 

@@ -8,4 +8,5 @@ cmake --build .
 cp instance_generator /app/builds
 cp instance_evaluator /app/builds
 cp placements_visualizer /app/builds
-cp optimizer_* /app/builds
+cp optimizer* /app/builds
+chmod +x /app/builds/*

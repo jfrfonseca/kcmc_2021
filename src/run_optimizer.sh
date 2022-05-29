@@ -13,8 +13,8 @@ cat /data/instances.csv | python3 -c 'import sys; [print((";".join(line.split(";
 
 # Process in parallel
 rm -f /tmp/*.par
-parallel -a /tmp/data.csv --colsep '\t' --files /app/optimizer_dinic
+parallel -a /tmp/data.csv --colsep '\t' --files /app/optimizer
 
 # Store results
-rm -f /results/optimizer_dinic.csv
-cat /tmp/*.par > /results/optimizer_dinic.csv
+rm -f /results/optimizer.csv
+cat /tmp/*.par > /results/optimizer.csv

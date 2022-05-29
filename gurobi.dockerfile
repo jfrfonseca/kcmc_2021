@@ -8,7 +8,3 @@ RUN apt-get update \
 
 # Install python dependencies
 RUN pip install --no-cache-dir boto3 simplejson ijson python_dynamodb_lock
-
-# Prepare the runpoint
-ENTRYPOINT ["python", "-u", "/home/gurobi/src/gurobi_optimizer.py"]
-CMD ["--help"]

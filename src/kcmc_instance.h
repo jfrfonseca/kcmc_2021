@@ -152,9 +152,19 @@ class KCMC_Instance {
         int fast_m_connectivity(int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *all_used_sensors);
         std::string m_connectivity(int m, std::unordered_set<int> &inactive_sensors);
 
+        /* Instance Preprocessors
+         * Local Optima yelds ony the sensors required to validate the instance using Dinic's algorithm (limited)
+         * Directed-BFS uses BFS exploring only neighbors closer to the sink at each level.
+         *   Nearly useless - less than 5% of the sensors are deactivated
+         * Flood finds all parallel paths from the dinic paths required in the instance.
+         *   The Minimal flood does it only for the required dinic paths. Full flood keeps on adding paths to the
+         *     minimal requirements until paths start to increase, so it has way more sensors.
+         * Reuse uses the full-flood to get paths. Each path votes on all its composing sensors. Then, new paths are
+         *   created preferring the most voted sensors in each dinic level.
+         */
         int local_optima(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *all_used_sensors);
         int directed_bfs(std::unordered_set<int> &seed_sensors, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *visited_sensors);
-        int flood_dinic(int k, int m, bool full, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *visited_sensors);
+        int flood(int k, int m, bool full, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *visited_sensors);
 
     private:
         void regenerate();

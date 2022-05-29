@@ -144,7 +144,7 @@ class GurobiModelWrapper(object):
                 for name, var in self.solution_variables.items()
             }
         }
-        self.results['objective_value'] = self.results['json_solution']['SolutionInfo']['ObjVal']
+        self.results['objective_value'] = self.results['json_solution']['SolutionInfo'].get('ObjVal', None)
         if compress_variables:
             self.results['variables'] = {name: self.compress(json.dumps(val))
                                          for name, val in self.results['variables'].items()}
@@ -171,8 +171,8 @@ def gurobi_multi_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time_
     A = A_c + A_g + A_s
 
     # Set the variables
-    X = model.add_vars(I, L, vtype=GRB.BINARY, name="x")
-    Y = model.add_vars(A, P, L, vtype=GRB.BINARY, name='y')
+    X = model.add_vars(I, L, name='x', vtype=GRB.BINARY)
+    Y = model.add_vars(A, P, L, name='y')  # , vtype=GRB.BINARY)
 
     # Set the objective function
     model.set_objective(X.sum('*', '*'), GRB.MINIMIZE)
@@ -183,49 +183,49 @@ def gurobi_multi_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time_
     disjunction = model.add_constraints(
         (X.sum(i, '*') <= 1
          for i in I),
-        name="ilp_multi_disjunction"
+        name="disjunction"
     )
 
     # Flow ------------------------------------------------
-    ilp_multi_flow_p = model.add_constraints(
+    flow_p = model.add_constraints(
         ((  gp.quicksum(Y.select(p, '*', p, l))
           - gp.quicksum(Y.select('*', p, p, l))) == 1
          for p in P
          for l in L),
-        name="ilp_multi_flow_p"
+        name="flow_p"
     )
 
-    ilp_multi_flow_s = model.add_constraints(
-        ((  gp.quicksum(Y.select(s, '*', p, l))
-          - gp.quicksum(Y.select('*', s, p, l))) == -1
-         for p in P
-         for l in L),
-        name="ilp_multi_flow_s"
-    )
-
-    ilp_multi_flow_i = model.add_constraints(
+    flow_i = model.add_constraints(
         ((  gp.quicksum(Y.select(i, '*', p, l))
           - gp.quicksum(Y.select('*', i, p, l))) == 0
          for i in I
          for p in P
          for l in L),
-        name="ilp_multi_flow_i"
+        name="flow_i"
+    )
+
+    flow_s = model.add_constraints(
+        ((  gp.quicksum(Y.select(s, '*', p, l))
+          - gp.quicksum(Y.select('*', s, p, l))) == -1
+         for p in P
+         for l in L),
+        name="flow_s"
     )
 
     # Projection ------------------------------------------
-    ilp_multi_projection = model.add_constraints(
+    projection = model.add_constraints(
         (Y.sum(i, '*', p, l) <= X.sum(i, l)
          for i in I
          for p in P
          for l in L),
-        name="ilp_multi_projection"
+        name="projection"
     )
 
     # K-Coverage ------------------------------------------
-    ilp_multi_k_coverage = model.add_constraints(
+    k_coverage = model.add_constraints(
         (gp.quicksum(X.select(iC[p], '*')) >= kcmc_k
          for p in P),
-        name="ilp_multi_k_coverage"
+        name="k_coverage"
     )
 
     # Return the model
@@ -250,8 +250,8 @@ def gurobi_single_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time
     A = A_c + A_g + A_s
 
     # Set the variables
-    X = model.add_vars(I, vtype=GRB.BINARY, name="x")
-    Y = model.add_vars(A, P, vtype=GRB.BINARY, name='y')
+    X = model.add_vars(I, name='x', vtype=GRB.BINARY)
+    Y = model.add_vars(A, P, name='y')  # , vtype=GRB.BINARY)
 
     # Set the objective function
     model.set_objective(X.sum('*'), GRB.MINIMIZE)
@@ -259,41 +259,41 @@ def gurobi_single_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time
     # Set the CONSTRAINTS -------------------------------------------------------------------------
 
     # Flow ------------------------------------------------
-    ilp_single_flow_p = model.add_constraints(
+    flow_p = model.add_constraints(
         ((  gp.quicksum(Y.select(p, '*', p))
           - gp.quicksum(Y.select('*', p, p))) == kcmc_m
          for p in P),
-        name="ilp_single_flow_p"
+        name="flow_p"
     )
 
-    ilp_single_flow_s = model.add_constraints(
+    flow_s = model.add_constraints(
         ((  gp.quicksum(Y.select(s, '*', p))
           - gp.quicksum(Y.select('*', s, p))) == -1 * kcmc_m
          for p in P),
-        name="ilp_single_flow_s"
+        name="flow_s"
     )
 
-    ilp_single_flow_i = model.add_constraints(
+    flow_i = model.add_constraints(
         ((  gp.quicksum(Y.select(i, '*', p))
           - gp.quicksum(Y.select('*', i, p))) == 0
          for i in I
          for p in P),
-        name="ilp_single_flow_i"
+        name="flow_i"
     )
 
     # Projection ------------------------------------------
-    ilp_single_projection = model.add_constraints(
+    projection = model.add_constraints(
         (Y.sum(i, '*', p) <= X.sum(i)
          for i in I
          for p in P),
-        name="ilp_single_projection"
+        name="projection"
     )
 
     # K-Coverage ------------------------------------------
-    ilp_single_k_coverage = model.add_constraints(
+    k_coverage = model.add_constraints(
         (gp.quicksum(X.select(iC[p], '*')) >= kcmc_k
          for p in P),
-        name="ilp_single_k_coverage"
+        name="k_coverage"
     )
 
     # Return the model

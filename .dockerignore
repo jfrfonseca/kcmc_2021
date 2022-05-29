@@ -1,3 +1,5 @@
-data/instances.parquet
-data/*.rdb
-data/*.aof
+analysis/*
+data/*
+dataviz/*
+deprecated/*
+cmake*

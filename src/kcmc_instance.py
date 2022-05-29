@@ -38,7 +38,7 @@ def get_serialized_instance(pois, sensors, sinks, area_side, sensor_coverage_rad
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
     stdout,stderr = out.communicate()
-    assert stderr is None, f'ERROR ON THE INSTANCE REGENERATOR.\nSTDOUT:{stdout}\n\nSTDERR:{stderr}'
+    assert (len(stdout) > 10) and (stderr is None), f'ERROR ON THE INSTANCE REGENERATOR.\nSTDOUT:{stdout}\n\nSTDERR:{stderr}'
     return stdout.decode().strip().splitlines()[0].strip()
 
 
@@ -58,11 +58,13 @@ def get_preprocessing(pois, sensors, sinks, area_side, sensor_coverage_radius, s
 
     # Parse the results
     stdout,stderr = out.communicate()
-    assert stderr is None, f'ERROR ON THE INSTANCE REGENERATOR.\nSTDOUT:{stdout}\n\nSTDERR:{stderr}'
+    assert (len(stdout) > 10) and (stderr is None), f'ERROR ON THE INSTANCE REGENERATOR.\nSTDOUT:{stdout}\n\nSTDERR:{stderr}'
     result = {}
+    if 'INVALID' in stdout.decode(): return {}
     for line in stdout.decode().strip().splitlines():
-        item = dict(zip(['method', 'runtime_us', 'valid_result', 'num_used_sensors', 'compression_rate', 'solution'],
-                        line.lower().strip().split('\t')[3:]))
+        content = line.lower().strip().split('\t')[3:]
+        assert len(content) == 6, f'INVALID LINE.\nSTDOUT:{stdout.decode()}\n\nSTDERR:{stderr}'
+        item = dict(zip(['method', 'runtime_us', 'valid_result', 'num_used_sensors', 'compression_rate', 'solution'], content))
 
         # Normalize the item key
         key = item.pop('method').replace('mf_dinic', 'minimal_flood_dinic').replace('ff_dinic', 'full_flood_dinic')
@@ -305,13 +307,27 @@ class KCMC_Instance(object):
                 self.random_seed, k, m
             )
 
-        # Return the raw result if required
-        if raw: return self._prep[prep_method]
+        # If we have a valid preprocessing:
+        if len(self._prep) > 0:
 
-        # Parse the raw result as a new instance
-        inactive_sensors = {f'i{j}' for j,i in enumerate(self._prep[prep_method]['solution']) if i == '0'}
-        return KCMC_Instance(self.key_str, *self.acceptance, inactive_sensors=inactive_sensors)
+            # Return the raw result if required
+            if raw: return self._prep[prep_method]
 
+            # Parse the raw result as a new instance
+            inactive_sensors = {f'i{j}' for j,i in enumerate(self._prep[prep_method]['solution']) if i == '0'}
+            return KCMC_Instance(self.key_str, *self.acceptance, inactive_sensors=inactive_sensors)
+
+        # If invalid preprocessing
+        else:
+            if raw: return {
+                'method': prep_method,
+                'runtime_us': 1_000_000,
+                'valid_result': False,
+                'num_used_sensors': len(self.sensors),
+                'compression_rate': 0.0,
+                'solution': '1'*len(self.sensors)
+            }
+            return self
 
     @staticmethod
     def _add_to(_dict:dict, key, value):

@@ -38,5 +38,5 @@ ADD_EXECUTABLE(optimizer_genalg_binary src/optimizer_binary_genalg.cpp)
 target_link_libraries(optimizer_genalg_binary KCMC_Module)
 
 
-ADD_EXECUTABLE(optimizer_dinic src/optimizer_dinic.cpp)
-target_link_libraries(optimizer_dinic KCMC_Module)
+ADD_EXECUTABLE(optimizer src/optimizer.cpp)
+target_link_libraries(optimizer KCMC_Module)

@@ -1,10 +1,11 @@
 #!/bin/sh
 
 # Prepare the SWAP space (24Gb)
-sudo dd if=/dev/zero of=/swapfile bs=1024M count=24
+sudo dd if=/dev/zero of=/swapfile bs=512M count=48
 sudo chmod 600 /swapfile
 sudo mkswap /swapfile
 sudo swapon /swapfile
+echo '/swapfile swap swap defaults 0 0' | sudo tee -a /etc/fstab
 
 # Install GIT, DOCKER and DOCKER-COMPOSE
 sudo yum install -y git docker htop

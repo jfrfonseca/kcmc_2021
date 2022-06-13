@@ -47,12 +47,6 @@ services:
       - ./src:/home/gurobi/src:ro
       - ./analysis/results:/results:rw
       - ./builds:/app:ro
-    deploy:
-      resources:
-        limits:
-          memory: 16G
-        reservations:
-          memory: 16G
 
   notebook:
     profiles:

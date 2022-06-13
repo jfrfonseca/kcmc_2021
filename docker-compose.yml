@@ -27,23 +27,6 @@ services:
       - ./data:/data:rw
       - ./src:/src:ro
 
-  preprocessor:
-    profiles:
-      - preprocessor
-    build:
-      dockerfile: gurobi.dockerfile
-      context: .
-    entrypoint: bash
-    command: "/home/gurobi/src/run_optimizer_dinic.sh"
-    environment:
-      GRB_CLIENT_LOG: 3
-      PYTHONPATH: "/home/gurobi/src"
-    volumes:
-      - ./data:/data:ro
-      - ./src:/home/gurobi/src:ro
-      - ./analysis/results/preprocessor:/results:rw
-      - ./builds:/app:ro
-
   optimizer:
     profiles:
       - gurobi
@@ -51,7 +34,7 @@ services:
     build:
       dockerfile: gurobi.dockerfile
       context: .
-    command: "python -u /home/gurobi/src/gurobi_optimizer.py --results s3://kcmc-heuristic/2022-05 --lock KCMC --instances_file /data/instances.50.csv "
+    command: "python -u /home/gurobi/src/gurobi_optimizer.py --instances_file /data/instances.csv --limit 3600 --results s3://kcmc-heuristic/2022-06 --lock KCMC"
     environment:
       GRB_CLIENT_LOG: 3
       PYTHONPATH: "/home/gurobi/src"
@@ -62,8 +45,14 @@ services:
       - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
       - ./data:/data:ro
       - ./src:/home/gurobi/src:ro
-      - ./analysis/results/optimizer:/results:rw
+      - ./analysis/results:/results:rw
       - ./builds:/app:ro
+    deploy:
+      resources:
+        limits:
+          memory: 16G
+        reservations:
+          memory: 16G
 
   notebook:
     profiles:
@@ -99,51 +88,3 @@ services:
       - ./dataviz/js:/usr/share/nginx/html/js:ro
       - ./dataviz/stylesheets:/usr/share/nginx/html/stylesheets:ro
       - ./data/visualizations:/usr/share/nginx/html/datasets:ro
-
-# The services below were used for the instance probability study
-#
-#  redis:
-#    profiles:
-#      - redis
-#      - generator
-#      - parser
-#    image: "redis:alpine"
-#    command: redis-server /data/redis.conf
-#    ports:
-#      - "6379:6379"
-#    volumes:
-#      - ./data:/data:rw
-#
-#  generator-random:
-#    profiles:
-#      - generator-random
-#    depends_on:
-#      - redis
-#    extra_hosts:
-#      - "host.docker.internal:host-gateway"
-#    command: "python -u /src/instance_generator_driver.py /data/instance_generator_configurations.csv 200 --clear-locks"
-#    build:
-#      dockerfile: instance_generator.dockerfile
-#      context: .
-#    volumes:
-#      - ./data:/data:ro
-#      - ./src:/src:ro
-#    deploy:
-#      mode: replicated
-#      replicas: 15
-#
-#  parser:
-#    profiles:
-#      - parser
-#    depends_on:
-#      - redis
-#    extra_hosts:
-#      - "host.docker.internal:host-gateway"
-#    command: "python -u /src/kcmc_instance.py /data/instances.csv 15 host.docker.internal --no-parsing"
-#    build:
-#      dockerfile: instance_generator.dockerfile
-#      context: .
-#    volumes:
-#      - ./data:/data:rw
-#      - ./src:/src:ro
-#

@@ -20,14 +20,20 @@ from kcmc_instance import KCMC_Instance
 from gurobi_models import gurobi_multi_flow, gurobi_single_flow
 
 
-MODELS_LIST = [
-    # 'gurobi_single_flow',
-    # 'gurobi_multi_flow',
-    'minimal_flood_dinic__gurobi_single_flow',
-    'minimal_flood_dinic__gurobi_multi_flow',
-    'full_flood_dinic__gurobi_single_flow',
-    'full_flood_dinic__gurobi_multi_flow'
-]
+MODELS = {
+    'gurobi_y_binary_single_flow': (gurobi_single_flow, True, None),
+    'gurobi_y_binary_multi_flow': (gurobi_multi_flow, True, None),
+    'gurobi_single_flow': (gurobi_single_flow, False, None),
+    'gurobi_multi_flow': (gurobi_multi_flow, False, None),
+    # 'dinic__gurobi_single_flow',
+    # 'dinic__gurobi_multi_flow',
+    # 'minimal_flood__gurobi_single_flow',
+    # 'minimal_flood__gurobi_multi_flow',
+    # 'full_flood__gurobi_single_flow',
+    # 'full_flood__gurobi_multi_flow',
+    # 'reuse__gurobi_single_flow',
+    # 'reuse__gurobi_multi_flow',
+}
 
 
 class MockLockObject(object):
@@ -89,10 +95,10 @@ if __name__ == '__main__':
         lock_client = DynamoDBLockClient(dynamo, table_name=lock_table)  # TTL by default: 1 hour
 
     # Parse the models
-    if args.models is None: models = MODELS_LIST
-    elif len(args.models) == 0: models = MODELS_LIST
+    if args.models is None: models = list(MODELS.keys())
+    elif len(args.models) == 0: models = list(MODELS.keys())
     else: models = [m.strip().lower() for m in args.models]
-    unknown_models = set(models).difference(set(MODELS_LIST))
+    unknown_models = set(models).difference(set(MODELS.keys()))
     assert len(unknown_models) == 0, 'UNKNOWN MODELS: '+', '.join(sorted(list(unknown_models)))
 
     # Parse the results store
@@ -165,9 +171,11 @@ if __name__ == '__main__':
         # Load the instance as a python object
         instance = KCMC_Instance(key, False, True, False)
 
+        # Get the arguments of the model
+        model_factory, y_binary, prep_stage = MODELS[model_name]
+
         # If the model has a preprocessing stage, preprocess it
-        if '__' in model_name:
-            prep_stage, main_stage = model_name.split('__')
+        if prep_stage:
             new_instance = instance.preprocess(kcmc_k, kcmc_m, prep_stage, raw=False)
             preprocessing = instance._prep.copy()
 
@@ -181,34 +189,33 @@ if __name__ == '__main__':
 
         else:
             prep_stage = ''
-            main_stage = model_name
             preprocessing = {}
 
-        # Execute the main stage
-        if main_stage.startswith('gurobi'):
-            model_factory = {
-                'gurobi_single_flow': gurobi_single_flow,
-                'gurobi_multi_flow': gurobi_multi_flow
-            }[main_stage]
+        if model_factory:
 
             # Build the model and its variables
-            model, X, Y = model_factory(kcmc_k, kcmc_m, instance, time_limit, threads, '/tmp/gurobi.log')
+            model, X, Y = model_factory(kcmc_k, kcmc_m, instance,
+                                        time_limit=time_limit, threads=threads,
+                                        LOGFILE='/tmp/gurobi.log', y_binary=y_binary)
 
             # Run the model
             results = model.optimize(compress_variables=True)
 
             # Get the LOGs
             with open('/tmp/gurobi.log', 'r') as fin:
-                gurobi_logs = [l.strip() for l in fin.readlines()]
+                gurobi_logs = '\n'.join([l.replace('\n', '') for l in fin.readlines() if len(l.strip()) > 0])
             os.unlink('/tmp/gurobi.log')
 
             # Update the results with some more metadata
             results.update({
+                'gurobi_y_binary': y_binary,
                 'gurobi_model': model_name,
                 'gurobi_logs': gurobi_logs
             })
 
-        else: raise NotImplementedError('Main stage is not GUROBI!')
+        # If no GUROBI stage:
+        else:
+            results = {'gurobi_model': None, 'gurobi_logs': None, 'gurobi_y_binary': None}
 
         # Enrich the results
         results.update({
@@ -217,7 +224,7 @@ if __name__ == '__main__':
             'coverage_radius': instance.sensor_coverage_radius,
             'communication_radius': instance.sensor_communication_radius,
             'random_seed': instance.random_seed,
-            'model': model_name, 'prep_stage': prep_stage, 'main_stage': main_stage,
+            'model': model_name, 'prep_stage': prep_stage,
             'time_limit': time_limit, 'threads': threads,
             'coverage_density': instance.coverage_density,
             'communication_density': instance.communication_density,

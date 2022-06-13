@@ -104,6 +104,10 @@ class GurobiModelWrapper(object):
     def decompress(str_input):
         return zlib.decompress(base64.b64decode(str_input.encode('ascii'))).decode('utf-8')
 
+    @staticmethod
+    def duration(start, end):
+        return end-start
+
     # Results Wrapper
     def optimize(self, compress_variables=False):
         if self.results is not None: return self.results.copy()
@@ -120,12 +124,13 @@ class GurobiModelWrapper(object):
         STATUS = GUROBI_STATUS_TRANSLATE.get(self.model.Status, f'ERROR ({self.model.Status})')
         self.results = {
             'time': {
+                'unit': 'nano seconds',
                 'setup': {
-                    'model': (self.model_setup_start, self.model_setup_end),
-                    'constraints': self.constraints_setup_time,
-                    'vars': self.vars_setup_time,
+                    'model': self.duration(self.model_setup_start, self.model_setup_end),
+                    'constraints': {key: self.duration(*values) for key, values in self.constraints_setup_time.items()},
+                    'vars': {key: self.duration(*values) for key, values in self.vars_setup_time.items()},
                 },
-                'wall': (self.optimization_start, self.optimization_end),
+                'wall': self.duration(self.optimization_start, self.optimization_end),
             },
             'gurobi_runtime': self.model.Runtime,
             'status_code': self.model.Status,
@@ -152,8 +157,8 @@ class GurobiModelWrapper(object):
         return self.results.copy()
 
 
-def gurobi_multi_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time_limit=60, threads=1, LOGFILE=None
-                      ) -> (GurobiModelWrapper, Any, Any):
+def gurobi_multi_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time_limit=60, threads=1, LOGFILE=None,
+                      y_binary=True) -> (GurobiModelWrapper, Any, Any):
 
     # Prepare the model object, using the wrapper
     model = GurobiModelWrapper('KCMC MULTI-FLOW', kcmc_k, kcmc_m, kcmc_instance, time_limit, threads, LOGFILE)
@@ -172,7 +177,10 @@ def gurobi_multi_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time_
 
     # Set the variables
     X = model.add_vars(I, L, name='x', vtype=GRB.BINARY)
-    Y = model.add_vars(A, P, L, name='y')  # , vtype=GRB.BINARY)
+    if y_binary:
+        Y = model.add_vars(A, P, L, name='y', vtype=GRB.BINARY)
+    else:
+        Y = model.add_vars(A, P, L, name='y')
 
     # Set the objective function
     model.set_objective(X.sum('*', '*'), GRB.MINIMIZE)
@@ -232,8 +240,8 @@ def gurobi_multi_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time_
     return model, X, Y
 
 
-def gurobi_single_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time_limit=60, threads=1, LOGFILE=None
-                       ) -> (GurobiModelWrapper, Any, Any):
+def gurobi_single_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time_limit=60, threads=1, LOGFILE=None,
+                       y_binary=True) -> (GurobiModelWrapper, Any, Any):
 
     # Prepare the model object, using the wrapper
     model = GurobiModelWrapper('KCMC SINGLE-FLOW', kcmc_k, kcmc_m, kcmc_instance, time_limit, threads, LOGFILE)
@@ -251,7 +259,10 @@ def gurobi_single_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time
 
     # Set the variables
     X = model.add_vars(I, name='x', vtype=GRB.BINARY)
-    Y = model.add_vars(A, P, name='y')  # , vtype=GRB.BINARY)
+    if y_binary:
+        Y = model.add_vars(A, P, name='y', vtype=GRB.BINARY)
+    else:
+        Y = model.add_vars(A, P, name='y')
 
     # Set the objective function
     model.set_objective(X.sum('*'), GRB.MINIMIZE)

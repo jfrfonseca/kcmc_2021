@@ -45,4 +45,4 @@ docker-compose --profile optimizer build
 # And then fill the file
 
 # And then you can run the optimizer stack, with:
-# nohup docker-compose --profile optimizer up &. log.out &
+# nohup docker-compose --profile optimizer up &> log.out &

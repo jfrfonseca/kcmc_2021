@@ -43,9 +43,9 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     volumes:
       - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
+      - ./data/results:/results:rw
       - ./data:/data:ro
       - ./src:/home/gurobi/src:ro
-      - ./analysis/results:/results:rw
       - ./builds:/app:ro
 
   notebook:
@@ -58,27 +58,10 @@ services:
       - "8888:8888"
     environment:
       GRB_CLIENT_LOG: 3
-      PYTHONPATH: "/home/gurobi/0_analysis/src"
+      PYTHONPATH: "/src"
     volumes:
       - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
-      - ./data:/data:rw
-      - /media/zeff/Peixe/DATA:/data/dynamodb_objs:ro
+      - ./data:/data:ro
+      - ./src:/src:ro
       - ./builds:/app:ro
       - ./analysis:/home/gurobi/0_analysis:rw
-      - ./src:/home/gurobi/0_analysis/src:ro
-
-  dataviz:
-    profiles:
-      - dataviz
-      - notebook
-    image: nginx:alpine
-    ports:
-      - 80:80
-      - 443:443
-    volumes:
-      - ./dataviz/index.html:/usr/share/nginx/html/index.html:ro
-      - ./dataviz/css:/usr/share/nginx/html/css:ro
-      - ./dataviz/fonts:/usr/share/nginx/html/fonts:ro
-      - ./dataviz/js:/usr/share/nginx/html/js:ro
-      - ./dataviz/stylesheets:/usr/share/nginx/html/stylesheets:ro
-      - ./data/visualizations:/usr/share/nginx/html/datasets:ro

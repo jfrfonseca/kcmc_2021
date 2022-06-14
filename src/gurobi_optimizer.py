@@ -5,6 +5,7 @@ Gurobi Optimizer Driver Script
 
 # STDLib
 import os
+import time
 import json
 import argparse
 from datetime import timedelta
@@ -20,6 +21,7 @@ from kcmc_instance import KCMC_Instance
 from gurobi_models import gurobi_multi_flow, gurobi_single_flow
 
 
+PROCESS_QUEUE_EXPIRE_TIME = 3000
 MODELS = {
     'gurobi_y_binary_single_flow': (gurobi_single_flow, True, None),
     'gurobi_y_binary_multi_flow': (gurobi_multi_flow, True, None),
@@ -55,6 +57,52 @@ def acquire_lock(lock_client:DynamoDBLockClient, lock_string:str) -> MockLockObj
             return None
         else: raise lkerr
     return lock
+
+
+def reset_process_queue(instances_file:str, models_list:list, s3_client, expire_time:int):
+    process_queue = []
+
+    # For each instance in the file
+    with open(instances_file, 'r') as fin:
+        for line in fin:
+
+            # Load the key, K and M of the instance
+            key = (';'.join(line.split(';', 4)[:-1]) + ';END').upper()
+            kcmc_k = int(line.split('|')[-1].split('K')[-1].split('M')[0])
+            kcmc_m = int(int(line.split('|')[-1].split('M')[-1].split(')')[0]))
+
+            # For each model, add a line to the process queue
+            for model in models_list:
+                process_queue.append((key, kcmc_k, kcmc_m, model))
+
+    # Find the already-processed results in the results store
+    existing_results = []
+    if s3_client is None:  # LOCAL FOLDER
+        for result in os.listdir(results_store):
+            if not result.endswith('.json'): continue
+            key, kcmc_k, kcmc_m, model_name, _ = result.lower().split('.')
+            kcmc_k, kcmc_m = map(int, [kcmc_k, kcmc_m])
+            key = key.split('_')
+            key = f'KCMC;{key[1]} {key[2]} {key[3]};{key[4]} {key[5]} {key[6]};{key[7]};END'
+            existing_results.append((key, kcmc_k, kcmc_m, model_name))
+    else:
+        bucket = boto3.resource('s3').Bucket(bucket_name)
+        all_items = s3_client.list_objects_v2(
+            Bucket=bucket_name,
+            Prefix=s3_path
+        )
+        assert len(all_items.get('Contents', [])) < 1000, 'MORE THAN 1000 ITEMS! SOME MIGHT HAVE BEEN LOST!'
+        for item in all_items.get('Contents', []):
+            key, kcmc_k, kcmc_m, model_name, _ = item['Key'].lower().rsplit('/', 1)[-1].split('.')
+            kcmc_k, kcmc_m = map(int, [kcmc_k, kcmc_m])
+            key = key.split('_')
+            key = f'KCMC;{key[1]} {key[2]} {key[3]};{key[4]} {key[5]} {key[6]};{key[7]};END'
+            existing_results.append((key, kcmc_k, kcmc_m, model_name))
+
+    # Find the resulting queue
+    process_queue = sorted(list(set(process_queue) - set(existing_results)))
+    print(f'PROCESS QUEUE HAS {len(process_queue)} ({len(existing_results)} already done)')
+    return process_queue, int(time.time())+expire_time
 
 
 # ######################################################################################################################
@@ -111,49 +159,8 @@ if __name__ == '__main__':
     else:
         s3_client = None
 
-    # Prepare the process queue ----------------------------------------------------------------------------------------
-    process_queue = []
-
-    # For each instance in the file
-    with open(instances_file, 'r') as fin:
-        for line in fin:
-
-            # Load the key, K and M of the instance
-            key = (';'.join(line.split(';', 4)[:-1]) + ';END').upper()
-            kcmc_k = int(line.split('|')[-1].split('K')[-1].split('M')[0])
-            kcmc_m = int(int(line.split('|')[-1].split('M')[-1].split(')')[0]))
-
-            # For each model, add a line to the process queue
-            for model in models:
-                process_queue.append((key, kcmc_k, kcmc_m, model))
-
-    # Find the already-processed results in the results store
-    existing_results = []
-    if s3_client is None:  # LOCAL FOLDER
-        for result in os.listdir(results_store):
-            if not result.endswith('.json'): continue
-            key, kcmc_k, kcmc_m, model_name, _ = result.lower().split('.')
-            kcmc_k, kcmc_m = map(int, [kcmc_k, kcmc_m])
-            key = key.split('_')
-            key = f'KCMC;{key[1]} {key[2]} {key[3]};{key[4]} {key[5]} {key[6]};{key[7]};END'
-            existing_results.append((key, kcmc_k, kcmc_m, model_name))
-    else:
-        bucket = boto3.resource('s3').Bucket(bucket_name)
-        all_items = s3_client.list_objects_v2(
-            Bucket=bucket_name,
-            Prefix=s3_path
-        )
-        assert len(all_items.get('Contents', [])) < 1000, 'MORE THAN 1000 ITEMS! SOME MIGHT HAVE BEEN LOST!'
-        for item in all_items.get('Contents', []):
-            key, kcmc_k, kcmc_m, model_name, _ = item['Key'].lower().rsplit('/', 1)[-1].split('.')
-            kcmc_k, kcmc_m = map(int, [kcmc_k, kcmc_m])
-            key = key.split('_')
-            key = f'KCMC;{key[1]} {key[2]} {key[3]};{key[4]} {key[5]} {key[6]};{key[7]};END'
-            existing_results.append((key, kcmc_k, kcmc_m, model_name))
-
-    # Find the resulting queue
-    process_queue = sorted(list(set(process_queue) - set(existing_results)))
-    print(f'PROCESS QUEUE HAS {len(process_queue)} ({len(existing_results)} already done)')
+    # Prepare the process queue
+    process_queue, process_queue_expiration = reset_process_queue(instances_file, models, s3_client, PROCESS_QUEUE_EXPIRE_TIME)
 
     # RUNTIME ----------------------------------------------------------------------------------------------------------
 
@@ -245,5 +252,9 @@ if __name__ == '__main__':
         # Release the lock
         lock.release()
         print(f'DONE {results["objective_value"]}')
+
+        # Reset the process queue if expired
+        if time.time() > process_queue_expiration:
+            process_queue, process_queue_expiration = reset_process_queue(instances_file, models, s3_client, PROCESS_QUEUE_EXPIRE_TIME)
 
     print('DONE WITH A RUN OF THE QUEUE!')

@@ -2,216 +2,220 @@
 GUROBI Single-Flow and Multi-Flow ILP Model Objects Factory
 """
 
-
-import time
-import zlib
+import re
 import json
-import base64
 from typing import Any
-from itertools import product
+from dataclasses import dataclass
+
+from numpy import nan
 
 import gurobipy as gp
 from gurobipy import GRB
 
 from kcmc_instance import KCMC_Instance
+from gurobi_model_wrapper import GurobiModelWrapper
 
 
-# TRANSLATE GUROBI STATUS CODES
-GUROBI_STATUS_TRANSLATE = {
-    GRB.OPTIMAL: f'OPTIMAL ({GRB.OPTIMAL})',
-    GRB.INFEASIBLE: f'INFEASIBLE ({GRB.INFEASIBLE})',
-    GRB.INF_OR_UNBD: f'INFEASIBLE ({GRB.INF_OR_UNBD})',
-    GRB.UNBOUNDED: f'INFEASIBLE ({GRB.UNBOUNDED})',
-
-    GRB.ITERATION_LIMIT: f'LIMIT ({GRB.ITERATION_LIMIT})',
-    GRB.NODE_LIMIT: f'LIMIT ({GRB.NODE_LIMIT})',
-    GRB.TIME_LIMIT: f'LIMIT ({GRB.TIME_LIMIT})',
-    GRB.SOLUTION_LIMIT: f'LIMIT ({GRB.SOLUTION_LIMIT})',
-    GRB.USER_OBJ_LIMIT: f'LIMIT ({GRB.USER_OBJ_LIMIT})'
-}
+PRESOLVE_REGEX_1 = re.compile(r'''Optimize a model with (\d+) rows, (\d+) columns and (\d+) nonzeros
+Model fingerprint: (\w+)
+Variable types: (\d+) continuous, (\d+) integer \((\d+) binary\)''')
 
 
-def get_installation(variable_X):
-    tuplelist = []
-    installation = {}
-    for x in variable_X:
-        if isinstance(x, str):
-            steiner_tree_id = '0'
-            installation_spot_id = str(x)
+# Even if we have more than one "Presolve removed..." lines, we only get the last - the one that precedes the "Presolve time" line
+PRESOLVE_REGEX_2 = re.compile(r'''Presolve removed (\d+) rows and (\d+) columns
+Presolve time: ([\d.]+)s
+Presolved: (\d+) rows, (\d+) columns, (\d+) nonzeros
+Variable types: (\d+) continuous, (\d+) integer \((\d+) binary\)''')
+
+
+# Even if we have more than one "Presolve removed..." lines, we only get the last - the one that precedes the "Presolve time" line
+PRESOLVE_REGEX_3 = re.compile(r'''Presolve removed (\d+) rows and (\d+) columns
+Presolve time: ([\d.]+)s
+Presolved: (\d+) rows, (\d+) columns, (\d+) nonzeros
+Found heuristic solution: objective ([\d.]+)
+Variable types: (\d+) continuous, (\d+) integer \((\d+) binary\)''')
+
+
+@dataclass
+class KCMC_Result:
+
+    # Key Attributes ------------------
+    pois: int
+    sensors: int
+    sinks: int
+
+    area_side: int
+    coverage_radius: int
+    communication_radius: int
+
+    random_seed: int
+
+    k: int
+    m: int
+
+    heuristic_name: str
+    y_binary: bool
+    gurobi_model_name: str
+
+    # Main results --------------------
+    heuristic_solution: str
+    # heuristic_objective_value
+    # heuristic_solution_size
+    # heuristic_solution_quality
+    gurobi_optimal: bool
+    gurobi_objective_value: float
+    gurobi_heuristic_objective_value: float
+    gurobi_solution: str
+    solution: dict
+    # solution_size
+    # solution_quality
+
+    # Time ----------------------------
+    heuristic_time: float
+    gurobi_setup_time: float
+    gurobi_run_time: float
+    # total_time: float
+
+    # Other Solver results ------------
+    gurobi_mip_gap: float
+    gurobi_bound: float
+    gurobi_bound_c: float
+    gurobi_node_count: int
+    gurobi_solutions_count: int
+    gurobi_simplex_iterations_count: int
+    gurobi_initial_rows_count: int                  # LOG-Parsed
+    gurobi_initial_columns_count: int               # LOG-Parsed
+    gurobi_initial_non_zero_count: int              # LOG-Parsed
+    gurobi_initial_binary_variables_count: int      # LOG-Parsed
+    gurobi_initial_integer_variables_count: int     # LOG-Parsed
+    gurobi_initial_continuous_variables_count: int  # LOG-Parsed
+    gurobi_presolve_time: float                     # LOG-Parsed
+    gurobi_presolve_removed_rows: int               # LOG-Parsed
+    gurobi_presolve_removed_columns: int            # LOG-Parsed
+    gurobi_rows_count: int                          # LOG-Parsed
+    gurobi_columns_count: int                       # LOG-Parsed
+    gurobi_non_zero_count: int                      # LOG-Parsed
+    gurobi_binary_variables_count: int              # LOG-Parsed
+    gurobi_integer_variables_count: int             # LOG-Parsed
+    gurobi_continuous_variables_count: int          # LOG-Parsed
+
+    # Other attributes ----------------
+    time_limit: float
+    gurobi_logs: str
+
+    # Derived attributes ----------------------------------
+
+    @property
+    def heuristic_objective_value(self) -> int: return sum(int(i) for i in self.heuristic_solution)
+    @property
+    def heuristic_solution_size(self) -> float: return float(self.heuristic_objective_value)
+    @property
+    def heuristic_solution_quality(self) -> float: return (self.sensors-self.heuristic_solution_size)/self.sensors
+
+    @property
+    def solution_size(self) -> int: return sum(int(i) for i in self.solution)
+    @property
+    def solution_quality(self) -> float: return (self.sensors-self.solution_size)/self.sensors
+
+    @property
+    def total_time(self) -> float: return sum([self.heuristic_time, self.gurobi_setup_time, self.gurobi_run_time])
+
+    # INSTANCE KEY --------------------
+
+    @property
+    def instance_key(self) -> str:
+        return 'KCMC;'+';'.join([
+            f'{self.pois} {self.sensors} {self.sinks}',
+            f'{self.area_side} {self.coverage_radius} {self.communication_radius}',
+            str(self.random_seed),
+            f'END'
+        ])
+
+    @property
+    def serial_instance(self) -> str:
+        return self.instance_key+f'|(K{self.k}M{self.m})'
+
+    # RESULT KEY ----------------------
+
+    @property
+    def result_key(self) -> str:
+        return 'KCMC;'+';'.join([
+            f'{self.pois} {self.sensors} {self.sinks}',
+            f'{self.area_side} {self.coverage_radius} {self.communication_radius}',
+            str(self.random_seed),
+            f'{self.k} {self.m} {self.heuristic_name} {self.gurobi_model_name}{"*" if self.y_binary else ""}'
+        ])
+    def __str__(self) -> str: return self.result_key
+    def __repr__(self) -> str: return self.result_key
+    def __hash__(self): return self.result_key.__hash__()
+
+    # Services --------------------------------------------
+
+    def asdict(self) -> dict:
+        data = vars(self)
+        data.update({
+            'heuristic_objective_value': self.heuristic_objective_value,
+            'heuristic_solution_size': self.heuristic_solution_size,
+            'heuristic_solution_quality': self.heuristic_solution_quality,
+            'solution_size': self.solution_size,
+            'solution_quality': self.solution_quality,
+            'total_time': self.total_time,
+            'instance_key': self.instance_key,
+            'serial_instance': self.serial_instance,
+            'result_key': self.result_key,
+        })
+        return data.copy()
+    def to_dict(self) -> dict: return self.asdict()
+
+    @staticmethod
+    def get_solution(variable_X:dict, num_sensors:int):
+
+        # Decompress, if needed
+        if isinstance(variable_X, str): variable_X = json.loads(GurobiModelWrapper.decompress(variable_X))
+
+        # Form the BitTrain solution
+        solution = ['0']*num_sensors
+        for isid, active in variable_X.items():
+            if active:
+                if "(" in isid: isid = eval(isid)[0]
+                solution[int(isid[1:])] = '1'
+        return ''.join(solution)
+
+    @staticmethod
+    def parse_presolve(gurobi_log):
+
+        # Initial values
+        ini_rows, ini_cols, ini_n0, _, ini_cont, ini_int, ini_bin = PRESOLVE_REGEX_1.search(gurobi_log).groups()
+
+        # Values and presolve
+        match_2 = PRESOLVE_REGEX_2.search(gurobi_log)
+        if match_2:
+            prem_rows, prem_cols, pre_t, \
+            end_rows, end_cols, end_n0, \
+            end_cont, end_int, end_bin \
+                = match_2.groups()
+            gurobi_heuristic_objective_value = nan
         else:
-            installation_spot_id, steiner_tree_id = x
-        sensor_installed = bool(variable_X[x].X)
-        tuplelist.append((installation_spot_id, steiner_tree_id, sensor_installed))
-        if sensor_installed:
-            installation[installation_spot_id] = steiner_tree_id
-    return tuplelist, installation
+            match_2 = PRESOLVE_REGEX_3.search(gurobi_log)
+            prem_rows, prem_cols, pre_t, \
+            end_rows, end_cols, end_n0, \
+            gurobi_heuristic_objective_value, \
+            end_cont, end_int, end_bin \
+                = match_2.groups()
+
+        # Format and return
+        return int(ini_rows), int(ini_cols), int(ini_n0), \
+               int(ini_cont), int(ini_int), int(ini_bin), \
+               int(end_rows), int(end_cols), int(end_n0), \
+               int(end_cont), int(end_int), int(end_bin), \
+               int(prem_rows), int(prem_cols), float(pre_t), \
+               float(gurobi_heuristic_objective_value)
 
 
-class DryRunGurobiModel(object):
-
-    def view_dict(self, data):
-        return f'{data["name"]} {data.get("vtype", data.get("direction", ""))} [{data["size"]}] Items: {data["items"]}'[:self.view_size]+'...'
-
-    @staticmethod
-    def hashable(val):
-        try:
-            d = {val: 0}
-            return True
-        except: return False
-
-    def __init__(self, name, view_size=72):
-        self.name = name
-        self.parameters = {}
-        self.variables = {}
-        self.constraints = {}
-        self.objectives = {}
-        self.view_size = view_size
-        self.GRB_TYPE_MAP = {getattr(GRB, name): name for name in dir(GRB) if self.hashable(getattr(GRB, name))}
-
-    def setParam(self, name, value):
-        self.parameters[name] = value
-        return self.parameters[-1]
-
-    def addVars(self, *args, name=None, vtype=None):
-        name = name if name else f'Variable {len(self.variables)}'
-        vtype = vtype if vtype else GRB.NUMERIC
-        self.variables[name] = {'name': name, 'vtype': self.GRB_TYPE_MAP[vtype], 'items': list(product(*args))}
-        self.variables[name]['size'] = len(self.variables[name]['items'])
-        return self.view_dict(self.variables[name])
-
-    def addConstrs(self, clauses, name=None):
-        name = name if name else f'Constraint set {len(self.constraints)}'
-        self.constraints[name] = {'name': name, 'items': clauses}
-        self.constraints[name]['size'] = len(self.constraints[name]['items'])
-        return self.view_dict(self.constraints[name])
-
-    def setObjective(self, clauses, direction):
-        name = f'Objective {len(self.objectives)+1}'
-        self.objectives[name] = {'name': name, 'direction': direction, 'items': clauses}
-        self.objectives[name]['size'] = len(self.objectives[name]['items'])
-        return self.view_dict(self.objectives[name])
-
-    def optimize(self, *args, **kwargs):
-        _parameters = self.parameters.copy()
-        _parameters.update({'size': len(self.parameters), 'class': 'parameters'})
-        return {
-            'model': self.name, 'name': self.name,
-            'parameters': self.parameters,
-            'variables': [self.view_dict(i) for i in self.variables.values()],
-            'objectives': [self.view_dict(i) for i in self.objectives.values()],
-            'constraints': [self.view_dict(i) for i in self.constraints.values()]
-        }
-
-
-class GurobiModelWrapper(object):
-
-    def __init__(self, name:str, kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance,
-                 time_limit:int, threads:int, LOGFILE=None, dry=False):
-
-        # Store the params
-        self.name = name
-        self.kcmc_k = kcmc_k
-        self.kcmc_m = kcmc_m
-        self.time_limit = time_limit
-        self.threads = threads
-        self.kcmc_instance = kcmc_instance
-
-        # Prepare the base params of the model
-        self.model_setup_start = time.time_ns()
-        model = gp.Model(self.name) if not dry else DryRunGurobiModel(self.name)
-
-        # Set the Time Limit and the Thread Count
-        model.setParam(GRB.Param.TimeLimit, time_limit)
-        model.setParam(GRB.Param.Threads, threads)
-
-        # Set the LOG configuration
-        if LOGFILE is not None: model.setParam(GRB.Param.LogFile, LOGFILE)
-        model.setParam(GRB.Param.OutputFlag, 1)
-        model.setParam(GRB.Param.LogToConsole, 0)
-        self.model_setup_end = time.time_ns()
-
-        # Copy the model locally
-        self.model = model
-        self.results = None
-        self.constraints = {}
-        self.solution_variables = {}
-        self.vars_setup_time = {}
-        self.constraints_setup_time = {}
-
-    # Configuration Service Wrapers
-    def add_vars(self, *args, **kwargs):
-        start = time.time_ns()
-        var = self.model.addVars(*args, **kwargs)
-        self.vars_setup_time[kwargs['name']] = (start, time.time_ns())
-        self.solution_variables[kwargs['name']] = var
-        return var
-    def set_objective(self, *args, **kwargs): return self.model.setObjective(*args, **kwargs)
-    def add_constraints(self, *args, name:str, **kwargs):
-        start = time.time_ns()
-        constr = self.model.addConstrs(*args, name=name, **kwargs)
-        self.constraints_setup_time[name] = (start, time.time_ns())
-        self.constraints[name] = constr
-        return constr
-
-    @staticmethod
-    def compress(str_input:str) -> str:
-        return base64.b64encode(zlib.compress(str_input.encode('utf-8'))).decode('ascii')
-
-    @staticmethod
-    def decompress(str_input):
-        return zlib.decompress(base64.b64decode(str_input.encode('ascii'))).decode('utf-8')
-
-    @staticmethod
-    def duration(start, end):
-        return end-start
-
-    # Results Wrapper
-    def optimize(self, compress_variables=False):
-        if self.results is not None: return self.results.copy()
-
-        # Run the execution
-        self.optimization_start = time.time_ns()
-        self.model.optimize()
-        self.optimization_end = time.time_ns()
-
-        # Warn the model that it has ended
-        self.model.setParam(GRB.Param.OutputFlag, 0)
-
-        # Store some metadata
-        STATUS = GUROBI_STATUS_TRANSLATE.get(self.model.Status, f'ERROR ({self.model.Status})')
-        self.results = {
-            'time': {
-                'unit': 'nano seconds',
-                'setup': {
-                    'model': self.duration(self.model_setup_start, self.model_setup_end),
-                    'constraints': {key: self.duration(*values) for key, values in self.constraints_setup_time.items()},
-                    'vars': {key: self.duration(*values) for key, values in self.vars_setup_time.items()},
-                },
-                'wall': self.duration(self.optimization_start, self.optimization_end),
-            },
-            'gurobi_runtime': self.model.Runtime,
-            'status_code': self.model.Status,
-            'status': STATUS.split(' ')[0],
-            'mip_gap': self.model.MIPGap,
-            'gurobi_model_fingerprint': str(self.model.Fingerprint),
-            'binary_variables': self.model.NumBinVars,
-            'solutions_count': self.model.SolCount,
-            'node_count': self.model.NodeCount,
-            'simplex_iterations_count': self.model.IterCount,
-            'json_solution': json.loads(self.model.getJSONSolution()),
-            'variables': {
-                name: {str(k): (v.X if self.model.SolCount > 0
-                                    else (v.Xn[0] if hasattr(v, 'Xn') else None))
-                       for k,v in var.items()}
-                for name, var in self.solution_variables.items()
-            }
-        }
-        self.results['objective_value'] = self.results['json_solution']['SolutionInfo'].get('ObjVal', None)
-        if compress_variables:
-            self.results['variables'] = {name: self.compress(json.dumps(val))
-                                         for name, val in self.results['variables'].items()}
-
-        return self.results.copy()
+"""
+# ######################################################################################################################
+# MULTI-FLOW
+"""
 
 
 def gurobi_multi_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time_limit=60, threads=1, LOGFILE=None,
@@ -296,6 +300,12 @@ def gurobi_multi_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time_
 
     # Return the model
     return model_mf, X, Y
+
+
+"""
+# ######################################################################################################################
+# SINGLE-FLOW
+"""
 
 
 def gurobi_single_flow(kcmc_k:int, kcmc_m:int, kcmc_instance:KCMC_Instance, time_limit=60, threads=1, LOGFILE=None,

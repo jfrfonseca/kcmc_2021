@@ -4,7 +4,7 @@ GUROBI Single-Flow and Multi-Flow ILP Model Objects Factory
 
 import re
 import json
-from typing import Any
+from typing import Any, Union
 from dataclasses import dataclass
 
 import gurobipy as gp
@@ -62,7 +62,7 @@ class KCMC_Result:
     # heuristic_solution_quality
     gurobi_optimal: bool
     gurobi_objective_value: float
-    gurobi_heuristic_objective_value: float
+    gurobi_heuristic_objective_value: Union[float, None]
     gurobi_solution: str
     solution: dict
     # solution_size
@@ -207,7 +207,7 @@ class KCMC_Result:
                int(end_rows), int(end_cols), int(end_n0), \
                int(end_cont), int(end_int), int(end_bin), \
                int(prem_rows), int(prem_cols), float(pre_t), \
-               float(gurobi_heuristic_objective_value)
+               float(gurobi_heuristic_objective_value) if gurobi_heuristic_objective_value else None
 
 
 """

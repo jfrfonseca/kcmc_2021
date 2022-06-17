@@ -7,8 +7,6 @@ import json
 from typing import Any
 from dataclasses import dataclass
 
-from numpy import nan
-
 import gurobipy as gp
 from gurobipy import GRB
 
@@ -194,7 +192,7 @@ class KCMC_Result:
             end_rows, end_cols, end_n0, \
             end_cont, end_int, end_bin \
                 = match_2.groups()
-            gurobi_heuristic_objective_value = nan
+            gurobi_heuristic_objective_value = None
         else:
             match_2 = PRESOLVE_REGEX_3.search(gurobi_log)
             prem_rows, prem_cols, pre_t, \

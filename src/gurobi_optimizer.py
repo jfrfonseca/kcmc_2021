@@ -23,9 +23,9 @@ from gurobi_models import gurobi_multi_flow, gurobi_single_flow
 
 PROCESS_QUEUE_EXPIRE_TIME = 3000
 MODELS = {
-    'gurobi_y_binary_single_flow': (gurobi_single_flow, True, None),
+    # 'gurobi_y_binary_single_flow': (gurobi_single_flow, True, None),
     'gurobi_y_binary_multi_flow': (gurobi_multi_flow, True, None),
-    'gurobi_single_flow': (gurobi_single_flow, False, None),
+    # 'gurobi_single_flow': (gurobi_single_flow, False, None),
     'gurobi_multi_flow': (gurobi_multi_flow, False, None),
     # 'dinic__gurobi_single_flow',
     # 'dinic__gurobi_multi_flow',

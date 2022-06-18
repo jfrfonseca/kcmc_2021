@@ -8,13 +8,9 @@ import os
 import time
 import json
 import argparse
-from datetime import timedelta
 
 # PIP
 import boto3
-
-# Auxiliary packages
-from python_dynamodb_lock.python_dynamodb_lock import DynamoDBLockClient, DynamoDBLockError
 
 # Payload packages
 from kcmc_instance import KCMC_Instance
@@ -36,27 +32,6 @@ MODELS = {
     # 'reuse__gurobi_single_flow',
     # 'reuse__gurobi_multi_flow',
 }
-
-
-class MockLockObject(object):
-    def __init__(self, lock_string):
-        self.lock_string = lock_string
-    def release(self): return True
-
-
-def acquire_lock(lock_client:DynamoDBLockClient, lock_string:str) -> MockLockObject:
-    if lock_client is None: return MockLockObject(lock_string)
-    try:
-        lock = lock_client.acquire_lock(
-            lock_string,
-            retry_timeout=timedelta(seconds=0.25),
-            retry_period=timedelta(seconds=0.20)
-        )
-    except DynamoDBLockError as lkerr:
-        if 'timed out' in str(lkerr).lower():
-            return None
-        else: raise lkerr
-    return lock
 
 
 def reset_process_queue(instances_file:str, models_list:list, s3_client, expire_time:int):
@@ -115,7 +90,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--models', nargs='*', help='List of zero or more models to run. If none is specified, all models and preprocessors will be run')
     parser.add_argument('--instances_file', default='/data/instances.csv', help='Local source of instances. Default: /data/instances.csv')
-    parser.add_argument('--lock', default='', help='Optional name of a DynamoDB LOCK TABLE to synchronize multi-node deployments')
+    parser.add_argument('-s', '--shard', type=float, default=1.0, help='Number of Shards dot Current Offset (like a float). Defaults to 1.0. Will be overwritten by env var SHARDING')
     parser.add_argument('-l', '--limit', type=int, help='Time limit to run GUROBI, in seconds. Default: 3600', default=3600)
     parser.add_argument('-r', '--results', default='/results', help='Results store. May be an AWS S3 prefix. Defaults to /results')
     args, unknown_args = parser.parse_known_args()
@@ -126,21 +101,8 @@ if __name__ == '__main__':
     assert time_limit > 1, 'INVALID TIME LIMIT: '+str(time_limit)
     instances_file = args.instances_file.strip()
     assert os.path.isfile(instances_file), 'INVALID INSTANCES FILE: '+instances_file
-    lock_table = None if len(str(args.lock).strip()) == 0 else str(args.lock).strip()
-
-    # if we have a lock table, create a DynamoDB lock object on it
-    if lock_table is None: lock_client = None
-    else:
-        # Create a Boto3 client; create the table if it does not exists and create a lock client
-        dynamo_cli = boto3.client('dynamodb')
-        dynamo = boto3.resource('dynamodb')
-        try:
-            response = dynamo_cli.describe_table(TableName=lock_table)
-        except Exception as exp:
-            if 'resource not found' in str(exp):
-                DynamoDBLockClient.create_dynamodb_table(dynamo_cli, table_name=lock_table)
-            else: raise exp
-        lock_client = DynamoDBLockClient(dynamo, table_name=lock_table)  # TTL by default: 1 hour
+    sharding = os.environ.get('SHARDING', args.shard)
+    shard_total, shard_offset = map(int, str(float(sharding)).split('.'))
 
     # Parse the models
     if args.models is None: models = list(MODELS.keys())
@@ -165,15 +127,10 @@ if __name__ == '__main__':
     # RUNTIME ----------------------------------------------------------------------------------------------------------
 
     # For each object to process
-    for key, kcmc_k, kcmc_m, model_name in process_queue:
-
-        # Acquire the lock to the object. If failure to acquire the lock, skip it
-        results_file = f'{key}.{kcmc_k}.{kcmc_m}.{model_name}'.replace(';', '_').replace(' ', '_')
-        lock = acquire_lock(lock_client, results_file)
-        if lock is None: continue
+    for key, kcmc_k, kcmc_m, model_name in process_queue[shard_offset::shard_total]:
 
         # Notify the processing of the instance
-        print(f'PROCESSING {key} | {kcmc_k} | {kcmc_m} | {model_name}')
+        print(f'({sharding}) PROCESSING {key} | {kcmc_k} | {kcmc_m} | {model_name}')
 
         # Load the instance as a python object
         instance = KCMC_Instance(key, False, True, False)
@@ -239,6 +196,7 @@ if __name__ == '__main__':
         })
 
         # Store the results
+        results_file = f'{key}.{kcmc_k}.{kcmc_m}.{model_name}'.replace(';', '_').replace(' ', '_')
         if s3_client is None:
             results_file = os.path.join(results_store, f'{results_file}.json')
             with open(results_file, 'w') as fout:
@@ -249,8 +207,6 @@ if __name__ == '__main__':
                 json.dump(results, fout)
             s3_client.upload_file('/tmp/'+results_file, bucket_name, os.path.join(s3_path, results_file))
 
-        # Release the lock
-        lock.release()
         print(f'DONE {results["objective_value"]}')
 
         # Reset the process queue if expired

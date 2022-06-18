@@ -5,7 +5,6 @@ Gurobi Optimizer Driver Script
 
 # STDLib
 import os
-import time
 import json
 import argparse
 
@@ -17,7 +16,6 @@ from kcmc_instance import KCMC_Instance
 from gurobi_models import gurobi_multi_flow, gurobi_single_flow
 
 
-PROCESS_QUEUE_EXPIRE_TIME = 3000
 MODELS = {
     # 'gurobi_y_binary_single_flow': (gurobi_single_flow, True, None),
     'gurobi_y_binary_multi_flow': (gurobi_multi_flow, True, None),
@@ -34,7 +32,7 @@ MODELS = {
 }
 
 
-def reset_process_queue(instances_file:str, models_list:list, s3_client, expire_time:int):
+def reset_process_queue(instances_file:str, models_list:list, s3_client):
     process_queue = []
 
     # For each instance in the file
@@ -77,7 +75,7 @@ def reset_process_queue(instances_file:str, models_list:list, s3_client, expire_
     # Find the resulting queue
     process_queue = sorted(list(set(process_queue) - set(existing_results)))
     print(f'PROCESS QUEUE HAS {len(process_queue)} ({len(existing_results)} already done)')
-    return process_queue, int(time.time())+expire_time
+    return process_queue
 
 
 # ######################################################################################################################
@@ -122,7 +120,7 @@ if __name__ == '__main__':
         s3_client = None
 
     # Prepare the process queue
-    process_queue, process_queue_expiration = reset_process_queue(instances_file, models, s3_client, PROCESS_QUEUE_EXPIRE_TIME)
+    process_queue = reset_process_queue(instances_file, models, s3_client)
 
     # RUNTIME ----------------------------------------------------------------------------------------------------------
 
@@ -208,9 +206,5 @@ if __name__ == '__main__':
             s3_client.upload_file('/tmp/'+results_file, bucket_name, os.path.join(s3_path, results_file))
 
         print(f'DONE {results["objective_value"]}')
-
-        # Reset the process queue if expired
-        if time.time() > process_queue_expiration:
-            process_queue, process_queue_expiration = reset_process_queue(instances_file, models, s3_client, PROCESS_QUEUE_EXPIRE_TIME)
 
     print('DONE WITH A RUN OF THE QUEUE!')

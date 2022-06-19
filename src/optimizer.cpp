@@ -14,51 +14,6 @@
 #include "genetic_algorithm_operators.h"  // exit_signal_handler
 
 
-/** DIRECTED BREADTH-FIRST SEARCH ALGORITM
- * Finds all active sensors that have lower level than the given seed set, and can be reached/visited from the seed set
- */
-int KCMC_Instance::directed_bfs(std::unordered_set<int> &seed_sensors,
-                                std::unordered_set<int> &inactive_sensors,
-                                std::unordered_set<int> *visited_sensors) {
-
-    // Local buffers
-    int i_sensor, level_graph[this->num_sensors], pushes = (int)seed_sensors.size();
-    std::queue<int> queue;
-
-    // Clear the set of visited sensors
-    visited_sensors->clear();
-
-    // Prepare a queue with each given active seed sensor
-    for (const int &a_sensor : seed_sensors) {if (not isin(inactive_sensors, a_sensor)) { queue.push(a_sensor); }}
-
-    // Process the level graph for the current instance
-    this->level_graph(level_graph, inactive_sensors);
-
-    // Iterate until the queue is empty
-    while (not queue.empty()) {
-
-        // Pop the sensor from the front of the queue and visit it
-        i_sensor = queue.front();
-        queue.pop();
-        visited_sensors->insert(i_sensor);
-
-        // For each non-visited active neighbor of the current i_sensor that has a non-larger level, add it to the queue
-        for (const int &neighbor : this->sensor_sensor[i_sensor]) {
-            if (    (not isin(inactive_sensors, neighbor))
-                and (not isin(*visited_sensors, neighbor))
-                and (level_graph[neighbor] <= level_graph[i_sensor])
-            ) {
-                queue.push(neighbor);
-                pushes++;
-            }
-        }
-    }
-
-    // Return the size of the visited sensors set
-    return pushes;
-}
-
-
 /** FLOOD-DINIC ALGORITM
  * For each POI, finds M node-disjoint paths connecting the POI to the SINK. Then "floods" the set of POIs found paths.
  * Flooding: Let path A connect POI P to sink S. Let A also be be a sequence of active sensors so that the first sensor
@@ -249,13 +204,12 @@ void printout_short(KCMC_Instance *instance, int k, int m,
 
 
 void help() {
-    std::cout << "Please, use the correct input for the KCMC instance dinic-based optimizer:" << std::endl << std::endl;
-    std::cout << "./optimizer_dinic <instance> <k> <m> <option?>" << std::endl;
+    std::cout << "Please, use the correct input for the KCMC instance heuristic optimizer:" << std::endl << std::endl;
+    std::cout << "./optimizer_dinic <instance> <k> <m>" << std::endl;
     std::cout << "  where:" << std::endl << std::endl;
     std::cout << "<instance> is the serialized KCMC instance" << std::endl;
     std::cout << "Integer 0 < K < 10 is the desired K coverage" << std::endl;
     std::cout << "Integer 0 < M < 10 is the desired M connectivity" << std::endl;
-    std::cout << "Option is the name of the single optimization method to be used. If not provided, all will be used" << std::endl;
     std::cout << "K migth be the pair K,M in the format (K{k}M{m}). In this case M is ignored" << std::endl;
     exit(0);
 }
@@ -273,12 +227,12 @@ int main(int argc, char* const argv[]) {
     signal(SIGKILL, exit_signal_handler);
 
     // Buffers
-    int k, m, poi;
-    std::string serialized_instance, alt_k, selected_method;
+    int k, m, num_paths;
+    std::string serialized_instance, alt_k;
     std::unordered_set<int> emptyset, used_installation_spots, seed_sensors;
 
     /* Parse base Arguments
-     * Serialized KCMC Instance (will be immediately de-serialized
+     * Serialized KCMC Instance (will be immediately de-serialized)
      * KCMC K and M parameters
      * */
     auto *instance = new KCMC_Instance(argv[1]);
@@ -293,7 +247,6 @@ int main(int argc, char* const argv[]) {
         k = std::stoi(argv[2]);
         m = std::stoi(argv[3]);
     }
-    if (argc > 4) { selected_method = argv[4]; } else { selected_method = ""; }
 
     // Prepare the clock buffers
     auto start = std::chrono::high_resolution_clock::now();
@@ -303,55 +256,33 @@ int main(int argc, char* const argv[]) {
     // Print the header
     // printf("Key\tK\tM\tOperation\tRuntime\tValid\tObjective\tCompression\tSolution\n");
 
-    // Validate the whole instance, getting the first local optima
-    if (selected_method.empty() or std::equal(selected_method.begin(), selected_method.end(), "dinic")) {
-        used_installation_spots.clear();
-        start = std::chrono::high_resolution_clock::now();
-        instance->local_optima(k, m, emptyset, &used_installation_spots);
-        end = std::chrono::high_resolution_clock::now();
-        duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        printout_short(instance, k, m, instance->num_sensors, "dinic", duration, used_installation_spots);
-    }
-
-// Directed-BFS is not worth it. It deactivates only about 5% of all sensors!
-//    // Process the Directed Breadth-First Search as a local optima, using the poi-covering sensors as seed
-//    if (selected_method.empty() or std::equal(selected_method.begin(), selected_method.end(), "directed_bfs")) {
-//        for (poi=0; poi < instance->num_pois; poi++) {
-//            for (const int &sensor : instance->poi_sensor[poi]) {
-//                seed_sensors.insert(sensor);
-//            }
-//        }
-//        used_installation_spots.clear();
-//        start = std::chrono::high_resolution_clock::now();
-//        instance->directed_bfs(seed_sensors, emptyset, &used_installation_spots);
-//        end = std::chrono::high_resolution_clock::now();
-//        duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-//        printout_short(instance, k, m, instance->num_sensors, "directed_bfs", duration, used_installation_spots);
-//    }
+    // Validate the whole instance, getting the first local optima using DINIC Algorithm
+    used_installation_spots.clear();
+    start = std::chrono::high_resolution_clock::now();
+    instance->local_optima(k, m, emptyset, &used_installation_spots);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    printout_short(instance, k, m, instance->num_sensors, "dinic", duration, used_installation_spots);
 
     // Process the Minimal-Flood mapping of the instance
-    if (selected_method.empty() or std::equal(selected_method.begin(), selected_method.end(), "min_flood")) {
-        used_installation_spots.clear();
-        start = std::chrono::high_resolution_clock::now();
-        poi = instance->flood(k, m, false, emptyset, &used_installation_spots);
-        end = std::chrono::high_resolution_clock::now();
-        duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        printout_short(instance, k, m, instance->num_sensors,
-                       "min_flood_" + std::to_string(poi),  // Add the number of paths found
-                       duration, used_installation_spots);
-    }
+    used_installation_spots.clear();
+    start = std::chrono::high_resolution_clock::now();
+    num_paths = instance->flood(k, m, false, emptyset, &used_installation_spots);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    printout_short(instance, k, m, instance->num_sensors,
+                   "min_flood_" + std::to_string(num_paths),  // Add the number of paths found
+                   duration, used_installation_spots);
 
-    // Process the Full-Flood mapping of the instance
-    if (selected_method.empty() or std::equal(selected_method.begin(), selected_method.end(), "max_flood")) {
-        used_installation_spots.clear();
-        start = std::chrono::high_resolution_clock::now();
-        poi = instance->flood(k, m, true, emptyset, &used_installation_spots);
-        end = std::chrono::high_resolution_clock::now();
-        duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-        printout_short(instance, k, m, instance->num_sensors,
-                       "max_flood_" + std::to_string(poi),  // Add the number of paths found
-                       duration, used_installation_spots);
-    }
+    // Process the Max-Flood mapping of the instance
+    used_installation_spots.clear();
+    start = std::chrono::high_resolution_clock::now();
+    num_paths = instance->flood(k, m, true, emptyset, &used_installation_spots);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    printout_short(instance, k, m, instance->num_sensors,
+                   "max_flood_" + std::to_string(num_paths),  // Add the number of paths found
+                   duration, used_installation_spots);
 
     return 0;
 }

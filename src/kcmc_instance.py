@@ -44,7 +44,7 @@ def get_serialized_instance(pois, sensors, sinks, area_side, sensor_coverage_rad
 
 # Get the regenerated instance from its key using the C++ interface
 def get_preprocessing(pois, sensors, sinks, area_side, sensor_coverage_radius, sensor_communication_radius, random_seed,
-                      kcmc_k, kcmc_m, executable='/app/optimizer_dinic'):
+                      kcmc_k, kcmc_m, executable='/app/optimizer'):
 
     # Run the C++ package
     out = subprocess.Popen(
@@ -66,10 +66,9 @@ def get_preprocessing(pois, sensors, sinks, area_side, sensor_coverage_radius, s
         assert len(content) == 6, f'INVALID LINE.\nSTDOUT:{stdout.decode()}\n\nSTDERR:{stderr}'
         item = dict(zip(['method', 'runtime_us', 'valid_result', 'num_used_sensors', 'compression_rate', 'solution'], content))
 
-        # Normalize the item key
-        key = item.pop('method').replace('mf_dinic', 'minimal_flood_dinic').replace('ff_dinic', 'full_flood_dinic')
-        if 'dinic' in key:
-            key, num_paths = key.rsplit('_', 1)
+        # Normalize the item method
+        if item['method'][-1].isdigit():
+            item['method'], num_paths = item['method'].rsplit('_', 1)
             item['num_paths'] = int(num_paths)
 
         # Normalize the values and store
@@ -77,7 +76,7 @@ def get_preprocessing(pois, sensors, sinks, area_side, sensor_coverage_radius, s
         item['runtime_us'] = int(item['runtime_us'])
         item['num_used_sensors'] = int(item['num_used_sensors'])
         item['compression_rate'] = float(item['compression_rate'])
-        result[key] = item
+        result[item['method']] = item.copy()
     return result
 
 

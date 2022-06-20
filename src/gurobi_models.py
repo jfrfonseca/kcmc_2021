@@ -4,11 +4,13 @@ GUROBI Single-Flow and Multi-Flow ILP Model Objects Factory
 
 import re
 import json
-from typing import Any, Union
+from typing import Any, Union, Dict
 from dataclasses import dataclass
 
 import gurobipy as gp
 from gurobipy import GRB
+
+import ijson
 
 from kcmc_instance import KCMC_Instance
 from gurobi_model_wrapper import GurobiModelWrapper
@@ -36,6 +38,7 @@ Variable types: (\d+) continuous, (\d+) integer \((\d+) binary\)''')
 
 @dataclass
 class KCMC_Result:
+    source_file: str
 
     # Key Attributes ------------------
     pois: int
@@ -100,6 +103,8 @@ class KCMC_Result:
     # Other attributes ----------------
     time_limit: float
     gurobi_logs: str
+    gurobi_variable_x_size: int
+    gurobi_variable_y_size: int
 
     # Derived attributes ----------------------------------
 
@@ -166,10 +171,13 @@ class KCMC_Result:
     def to_dict(self) -> dict: return self.asdict()
 
     @staticmethod
-    def get_solution(variable_X:dict, num_sensors:int):
+    def parse_variable(variable:dict) -> dict:
+        if isinstance(variable, str): variable = json.loads(GurobiModelWrapper.decompress(variable))
+        return variable
 
-        # Decompress, if needed
-        if isinstance(variable_X, str): variable_X = json.loads(GurobiModelWrapper.decompress(variable_X))
+    @staticmethod
+    def get_solution(variable_X:dict, num_sensors:int):
+        variable_X = KCMC_Result.parse_variable(variable_X)
 
         # Form the BitTrain solution
         solution = ['0']*num_sensors
@@ -178,6 +186,15 @@ class KCMC_Result:
                 if "(" in isid: isid = eval(isid)[0]
                 solution[int(isid[1:])] = '1'
         return ''.join(solution)
+
+    @staticmethod
+    def get_variable_size(variable:str, decompress=True) -> int:
+        variable = GurobiModelWrapper.decompress(variable) if decompress else variable
+        i = 0
+        for prefix, event, value in ijson.parse(variable):
+            if event == 'map_key':
+                i += 1
+        return i
 
     @staticmethod
     def parse_presolve(gurobi_log):

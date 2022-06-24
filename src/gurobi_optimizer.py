@@ -16,6 +16,19 @@ from kcmc_instance import KCMC_Instance
 from gurobi_models import gurobi_multi_flow, gurobi_single_flow
 
 
+def get_all_s3_objects(s3, **base_kwargs):
+    continuation_token = None
+    while True:
+        list_kwargs = dict(MaxKeys=1000, **base_kwargs)
+        if continuation_token:
+            list_kwargs['ContinuationToken'] = continuation_token
+        response = s3.list_objects_v2(**list_kwargs)
+        yield from response.get('Contents', [])
+        if not response.get('IsTruncated'):  # At the end of the list?
+            break
+        continuation_token = response.get('NextContinuationToken')
+
+
 MODELS = {
     'gurobi_y_binary_single_flow': (gurobi_single_flow, True, None),
     'gurobi_y_binary_multi_flow': (gurobi_multi_flow, True, None),
@@ -60,13 +73,7 @@ def reset_process_queue(instances_file:str, models_list:list, s3_client):
             key = f'KCMC;{key[1]} {key[2]} {key[3]};{key[4]} {key[5]} {key[6]};{key[7]};END'
             existing_results.append((key, kcmc_k, kcmc_m, model_name))
     else:
-        bucket = boto3.resource('s3').Bucket(bucket_name)
-        all_items = s3_client.list_objects_v2(
-            Bucket=bucket_name,
-            Prefix=s3_path
-        )
-        assert len(all_items.get('Contents', [])) < 1000, 'MORE THAN 1000 ITEMS! SOME MIGHT HAVE BEEN LOST!'
-        for item in all_items.get('Contents', []):
+        for item in get_all_s3_objects(s3_client, Bucket=bucket_name, Prefix=s3_path):
             key, kcmc_k, kcmc_m, model_name, _ = item['Key'].lower().rsplit('/', 1)[-1].split('.')
             kcmc_k, kcmc_m = map(int, [kcmc_k, kcmc_m])
             key = key.split('_')

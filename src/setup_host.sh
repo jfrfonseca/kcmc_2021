@@ -1,7 +1,7 @@
 #!/bin/sh
 
-# Prepare the SWAP space (24Gb)
-sudo dd if=/dev/zero of=/swapfile bs=512M count=48
+# Prepare the SWAP space (48Gb)
+sudo dd if=/dev/zero of=/swapfile bs=512M count=96
 sudo chmod 600 /swapfile
 sudo mkswap /swapfile
 sudo swapon /swapfile
@@ -26,6 +26,8 @@ sudo systemctl enable docker.service
 sudo systemctl start docker.service
 
 # You might have to LOG-OUT and then LOG IN again after running the code above and before running the code below
+
+cd kcmc_heuristic
 
 # Compile the C++ code
 docker-compose --profile compiler build

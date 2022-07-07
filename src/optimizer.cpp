@@ -262,7 +262,9 @@ int main(int argc, char* const argv[]) {
     instance->local_optima(k, m, emptyset, &used_installation_spots);
     end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    printout_short(instance, k, m, instance->num_sensors, "dinic", duration, used_installation_spots);
+    printout_short(instance, k, m, instance->num_sensors,
+                   "dinic",
+                   duration, used_installation_spots);
 
     // Process the Minimal-Flood mapping of the instance
     used_installation_spots.clear();

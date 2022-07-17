@@ -6,7 +6,9 @@ set(CMAKE_CXX_STANDARD 14)
 # Utilities and KCMC Instance Object ------------------------------------------
 ADD_LIBRARY(KCMC_Module
             src/kcmc_instance.cpp
+            src/k_coverage.cpp
             src/m_connectivity.cpp
+            src/optimizer.cpp
             src/kcmc_instance.h
             src/genetic_algorithm_operators.cpp
             src/genetic_algorithm_operators.h
@@ -38,5 +40,5 @@ ADD_EXECUTABLE(optimizer_genalg_binary src/optimizer_binary_genalg.cpp)
 target_link_libraries(optimizer_genalg_binary KCMC_Module)
 
 
-ADD_EXECUTABLE(optimizer src/optimizer.cpp)
+ADD_EXECUTABLE(optimizer src/optimizer_runtime.cpp)
 target_link_libraries(optimizer KCMC_Module)

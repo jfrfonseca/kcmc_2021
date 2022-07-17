@@ -1,17 +1,37 @@
 
 
 // STDLib dependencies
-#include <csignal>    // SIGINT and other signals
 #include <sstream>    // ostringstream
 #include <queue>      // queue
 #include <iostream>   // cin, cout, endl
-#include <chrono>     // time functions
 #include <iomanip>    // setfill, setw
-#include <cstring>    // strcpy
 
 // Dependencies from this package
 #include "kcmc_instance.h"  // KCMC Instance class headers
 #include "genetic_algorithm_operators.h"  // exit_signal_handler
+
+
+/** LOCAL OPTIMA DINIC ALGORITM
+ * Get a set of sensors from the instance that has k-coverage and m-connectivity using the Dinic algorithm, a simple
+ * greedy method that moves to the node closer to the sink.
+ */
+
+int KCMC_Instance::local_optima(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *result_buffer) {
+
+    // Prepare buffers
+    std::unordered_set<int> k_used_sensors, m_used_sensors, all_used_sensors;
+
+    // Check validity, recovering the used sensors for K coverage and M connectivity
+    this->validate(true, k, m, inactive_sensors, &k_used_sensors, &m_used_sensors);
+
+    // Store the used sensors in the given buffer
+    all_used_sensors = set_merge(k_used_sensors, m_used_sensors);
+    result_buffer->clear();
+    *result_buffer = all_used_sensors;
+
+    // Return the real number of inactive sensors
+    return this->num_sensors - ((int)all_used_sensors.size());
+}
 
 
 /** FLOOD-DINIC ALGORITM
@@ -22,7 +42,7 @@
  * all sensors that connect both to ix-1 and ix+1. At the starting edge of A, ix-1 is P. At the end edge of A, ix+1 is S
  */
 int KCMC_Instance::flood(int k, int m, bool full,
-                         std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *visited_sensors) {
+                         std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors) {
 
     // Base case
     if (m < 1){return -1;}
@@ -50,7 +70,7 @@ int KCMC_Instance::flood(int k, int m, bool full,
     // Add all poi-covering sensors to the result buffer
     for (a_poi=0; a_poi < this->num_pois; a_poi++) {
         for (const int &a_sensor : this->poi_sensor[a_poi]) {
-            visited_sensors->insert(a_sensor);
+            vote(*visited_sensors, a_sensor);
         }
     }
 
@@ -98,7 +118,7 @@ int KCMC_Instance::flood(int k, int m, bool full,
                     if ((previous == -1) and (next_i == -1)) {
                         for (const int &bridge: this->poi_sensor[a_poi]) {
                             if (isin(this->sensor_sink, bridge) and (not isin(inactive_sensors, bridge))) {
-                                visited_sensors->insert(bridge);
+                                vote(*visited_sensors, bridge);
                             }
                         }
                     } else {
@@ -108,7 +128,7 @@ int KCMC_Instance::flood(int k, int m, bool full,
                         if (previous == -1) {
                             for (const int &cover: this->poi_sensor[a_poi]) {
                                 if (isin(this->sensor_sensor[cover], path_end) and (not isin(inactive_sensors, cover))) {
-                                    visited_sensors->insert(cover);
+                                    vote(*visited_sensors, cover);
                                 }
                             }
                         } else {
@@ -118,7 +138,7 @@ int KCMC_Instance::flood(int k, int m, bool full,
                             if (next_i == -1) {
                                 for (const int &conn: this->sensor_sensor[previous]) {
                                     if (isin(this->sensor_sink, conn) and (not isin(inactive_sensors, conn))) {
-                                        visited_sensors->insert(conn);
+                                        vote(*visited_sensors, conn);
                                     }
                                 }
                             } else {
@@ -127,7 +147,7 @@ int KCMC_Instance::flood(int k, int m, bool full,
                                  */
                                 for (const int &conn: this->sensor_sensor[previous]) {
                                     if (isin(this->sensor_sensor[conn], next_i) and (not isin(inactive_sensors, conn))) {
-                                        visited_sensors->insert(conn);
+                                        vote(*visited_sensors, conn);
                                     }
                                 }
                             }
@@ -159,132 +179,4 @@ int KCMC_Instance::flood(int k, int m, bool full,
 
     // Success in each and every POI! Return the total of found paths
     return total_paths_found;
-}
-
-
-/* #####################################################################################################################
- * RUNTIME
- * */
-
-
-void printout_short(KCMC_Instance *instance, int k, int m,
-                    const int num_sensors, const std::string operation,
-                    const long duration, std::unordered_set<int> &used_installation_spots) {
-
-    // Validate the instance
-    std::unordered_set<int> inactive_sensors;
-    instance->invert_set(used_installation_spots, &inactive_sensors);
-    bool valid = instance->validate(false, k, m, inactive_sensors);
-
-    // Reformat the used installation spots as an array of 0/1
-    int individual[num_sensors];
-    std::fill(individual, individual+num_sensors, 0);
-    for (const int &used_spot : used_installation_spots) { individual[used_spot] = 1; }
-
-    // Prepare the output buffer
-    std::ostringstream out;
-
-    // Print a line with:
-    // - The key of the instance
-    // - The name of the current operation
-    // - The amount of microsseconds the method needed to run
-    // - The number of used installation spots
-    // - The resulting map of the instance, as a binary of num_sensors bits
-    out << instance->key() << "\t" << k << "\t" << m
-        << "\t" << operation
-        << "\t" << duration
-        << "\t" << (valid ? "OK" : "INVALID")
-        << "\t" << used_installation_spots.size()
-        << "\t" << std::fixed << std::setprecision(5) << (double)(inactive_sensors.size()) / (double)num_sensors
-        << "\t";
-    for (int i=0; i<num_sensors; i++) {out << individual[i];}
-    // Flush
-    std::cout << out.str() << std::endl;
-}
-
-
-void help() {
-    std::cout << "Please, use the correct input for the KCMC instance heuristic optimizer:" << std::endl << std::endl;
-    std::cout << "./optimizer_dinic <instance> <k> <m>" << std::endl;
-    std::cout << "  where:" << std::endl << std::endl;
-    std::cout << "<instance> is the serialized KCMC instance" << std::endl;
-    std::cout << "Integer 0 < K < 10 is the desired K coverage" << std::endl;
-    std::cout << "Integer 0 < M < 10 is the desired M connectivity" << std::endl;
-    std::cout << "K migth be the pair K,M in the format (K{k}M{m}). In this case M is ignored" << std::endl;
-    exit(0);
-}
-
-
-int main(int argc, char* const argv[]) {
-    if (argc < 3) { help(); }
-
-    // Registers the signal handlers
-    signal(SIGINT, exit_signal_handler);
-    signal(SIGALRM, exit_signal_handler);
-    signal(SIGABRT, exit_signal_handler);
-    signal(SIGSTOP, exit_signal_handler);
-    signal(SIGTERM, exit_signal_handler);
-    signal(SIGKILL, exit_signal_handler);
-
-    // Buffers
-    int k, m, num_paths;
-    std::string serialized_instance, alt_k;
-    std::unordered_set<int> emptyset, used_installation_spots, seed_sensors;
-
-    /* Parse base Arguments
-     * Serialized KCMC Instance (will be immediately de-serialized)
-     * KCMC K and M parameters
-     * */
-    auto *instance = new KCMC_Instance(argv[1]);
-    alt_k = argv[2];
-    std::transform(alt_k.begin(), alt_k.end(),alt_k.begin(), ::toupper);
-    char p[alt_k.size()];
-    strcpy(p, alt_k.c_str());
-    if (alt_k.find('K') != std::string::npos) {
-        k = ((int)p[2]) - ((int)'0');  // ONLY FOR K,M < 10!!!
-        m = ((int)p[4]) - ((int)'0');  // ONLY FOR K,M < 10!!!
-    } else {
-        k = std::stoi(argv[2]);
-        m = std::stoi(argv[3]);
-    }
-
-    // Prepare the clock buffers
-    auto start = std::chrono::high_resolution_clock::now();
-    auto end = std::chrono::high_resolution_clock::now();
-    long duration;
-
-    // Print the header
-    // printf("Key\tK\tM\tOperation\tRuntime\tValid\tObjective\tCompression\tSolution\n");
-
-    // Validate the whole instance, getting the first local optima using DINIC Algorithm
-    used_installation_spots.clear();
-    start = std::chrono::high_resolution_clock::now();
-    instance->local_optima(k, m, emptyset, &used_installation_spots);
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    printout_short(instance, k, m, instance->num_sensors,
-                   "dinic",
-                   duration, used_installation_spots);
-
-    // Process the Minimal-Flood mapping of the instance
-    used_installation_spots.clear();
-    start = std::chrono::high_resolution_clock::now();
-    num_paths = instance->flood(k, m, false, emptyset, &used_installation_spots);
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    printout_short(instance, k, m, instance->num_sensors,
-                   "min_flood_" + std::to_string(num_paths),  // Add the number of paths found
-                   duration, used_installation_spots);
-
-    // Process the Max-Flood mapping of the instance
-    used_installation_spots.clear();
-    start = std::chrono::high_resolution_clock::now();
-    num_paths = instance->flood(k, m, true, emptyset, &used_installation_spots);
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    printout_short(instance, k, m, instance->num_sensors,
-                   "max_flood_" + std::to_string(num_paths),  // Add the number of paths found
-                   duration, used_installation_spots);
-
-    return 0;
 }

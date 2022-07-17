@@ -21,9 +21,11 @@
 #define WORST_FITNESS 9999999999
 
 
-/** NODE
+/* NODE
  * Basic building block of the KCMC Instance. Contains its type (poi, sensor, sink), index (in array) and dinic level
- * Placement is a buffer for positioning nodes when generating a random instance
+ * LevelNodes can be compared in function of their level.
+ * Placement is a buffer for positioning nodes when generating a random instance.
+ * The euclidean distance between two placements can also be computed in function of its X and Y coordinates.
  */
 
 
@@ -32,15 +34,11 @@ struct Node {
     int index;
 };
 
-struct Placement {
-    Node *node;
-    int x, y;
-};
-
 struct LevelNode {
     int index;
     int level;
 };
+
 struct CompareLevelNode {
     bool operator()(LevelNode const& a, LevelNode const& b) {
         // return "true" if "a" is ordered before "b"
@@ -49,30 +47,58 @@ struct CompareLevelNode {
     }
 };
 
+
+struct Placement {
+    Node *node;
+    int x, y;
+};
+
+double distance(Placement source, Placement target);
+
+
+/* ISIN
+ * Many-types-of-input verification if a given item is in the reference set.
+ * If the reference set is a mapping, the search is in its keys.
+ */
+
+
 bool isin(std::unordered_map<int, std::unordered_set<int>> &ref, int item);
 bool isin(std::unordered_map<int, int> &ref, int item);
 bool isin(std::unordered_set<int> &ref, int item);
 bool isin(std::unordered_set<std::string> &ref, const std::string &item);
 bool isin(std::vector<int> &ref, int item);
 bool isin(std::vector<int> *ref, int item);
+
+
+/* PUSH AND VOTE
+ * PUSH: Adds a new pair in a mapping, from the source to a set containing only the target.
+ *       If the source is already in the set, the target is added to its mapped data.
+ * VOTE: Adds an element to a map, pointing to the value 1.
+ *       It the source element is alreary in the map, increase the value of its mapped data by 1.
+ */
 void push(std::unordered_map<int, std::unordered_set<int>> &buffer, int source, int target);
-std::unordered_set<int> set_diff(const std::unordered_set<int> &left, const std::unordered_set<int> &right);
+void vote(std::unordered_map<int, int> &buffer, int target);
 
 
 /* SET MERGE
- * Returns the set that is the sum of the given sets
+ * Returns the set that is the sum (or difference) of the given sets
  */
 template<class T>
 T set_merge (T a, T b) {T t(a); t.insert(b.begin(),b.end()); return t;}
+std::unordered_set<int> set_diff(const std::unordered_set<int> &left, const std::unordered_set<int> &right);
 
 
 /* SETIFY
  * Returns a set from other data structure
  */
 void setify(std::unordered_set<int> &target, int size, int source[], int reference);
+void setify(std::unordered_set<int> &target, std::unordered_map<int, int> *reference);
 
 
-/** KCMC Instance
+// #####################################################################################################################
+
+
+/** KCMC Instance Object
  * Contains node vectors for pois, sensors, sinks.
  * Vector of unordered sets listing the neighbors of each poi, sensor and sink
  */
@@ -154,8 +180,6 @@ class KCMC_Instance {
 
         /* Instance Preprocessors
          * Local Optima yelds ony the sensors required to validate the instance using Dinic's algorithm (limited)
-         * Directed-BFS uses BFS exploring only neighbors closer to the sink at each level.
-         *   Nearly useless - less than 5% of the sensors are deactivated
          * Flood finds all parallel paths from the dinic paths required in the instance.
          *   The Minimal flood does it only for the required dinic paths. Full flood keeps on adding paths to the
          *     minimal requirements until paths start to increase, so it has way more sensors.
@@ -163,8 +187,7 @@ class KCMC_Instance {
          *   created preferring the most voted sensors in each dinic level.
          */
         int local_optima(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *all_used_sensors);
-        int directed_bfs(std::unordered_set<int> &seed_sensors, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *visited_sensors);
-        int flood(int k, int m, bool full, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *visited_sensors);
+        int flood(int k, int m, bool full, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors);
 
     private:
         void regenerate();

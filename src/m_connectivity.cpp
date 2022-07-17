@@ -236,21 +236,3 @@ int KCMC_Instance::get_connectivity(int buffer[], std::unordered_set<int> &inact
 int KCMC_Instance::get_connectivity(int buffer[], std::unordered_set<int> &inactive_sensors) {
     return this->get_connectivity(buffer, inactive_sensors, 10);  // Default value for target
 }
-
-
-int KCMC_Instance::local_optima(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *result_buffer) {
-
-    // Prepare buffers
-    std::unordered_set<int> k_used_sensors, m_used_sensors, all_used_sensors;
-
-    // Check validity, recovering the used sensors for K coverage and M connectivity
-    this->validate(true, k, m, inactive_sensors, &k_used_sensors, &m_used_sensors);
-
-    // Store the used sensors in the given buffer
-    all_used_sensors = set_merge(k_used_sensors, m_used_sensors);
-    result_buffer->clear();
-    *result_buffer = all_used_sensors;
-
-    // Return the real number of inactive sensors
-    return this->num_sensors - ((int)all_used_sensors.size());
-}

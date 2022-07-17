@@ -13,174 +13,8 @@
 #include "kcmc_instance.h"  // KCMC Instance class headers
 
 
-void setify(std::unordered_set<int> &target, int size, int source[], int reference) {
-    target.clear();
-    for (int i=0; i<size; i++) {if (source[i] == reference) {target.insert(i);}}
-}
-
 /* #####################################################################################################################
- * KCMC-PROBLEM PAYLOAD METHODS
- */
-
-
-/** Coverage getter
- * Gets the coverage at each POI, and the number of POIs with any coverage at all
- */
-int KCMC_Instance::get_coverage(int buffer[], std::unordered_set<int> &inactive_sensors) {
-
-    // For each POI, count its coverage and if it has coverage at all
-    int has_coverage = 0;
-    for (int n_poi=0; n_poi < this->num_pois; n_poi++) {
-        buffer[n_poi] = (int)(set_diff(poi_sensor[n_poi], inactive_sensors).size());
-        has_coverage += buffer[n_poi] > 0 ? 1 : 0;
-    }
-
-    // Return the number of POIs that have any coverage at all
-    return has_coverage;
-}
-
-
-/** Degree Getter
- * Gets the degree of each active sensor, and the number of sensors with degre larger than 0
- */
-int KCMC_Instance::get_degree(int buffer[], std::unordered_set<int> &inactive_sensors) {
-
-    // For each Sensor, count its coverage, returning the number of sensors with any conection at all
-    int has_connection = 0;
-    for (int n_sensor=0; n_sensor < this->num_sensors; n_sensor++) {
-        buffer[n_sensor] = (int)(set_diff(sensor_sensor[n_sensor], inactive_sensors).size());
-        has_connection += 1;
-    }
-
-    // Return the number of Sensors that have any degree at all
-    return has_connection;
-}
-
-
-/** K-Coverage Validator
- * Very trivial k-coverage validator
- */
-int KCMC_Instance::fast_k_coverage(const int k, std::unordered_set<int> &inactive_sensors) {
-    // Base case
-    if (k < 1){return -1;}
-
-    // Start buffers
-    unsigned long active_coverage;
-
-    // For each POI, count its coverage, returning and error if insufficient
-    for (int n_poi=0; n_poi < this->num_pois; n_poi++) {
-        active_coverage = set_diff(poi_sensor[n_poi], inactive_sensors).size();
-        if (active_coverage < k) {
-            return (n_poi*1000000)+(int)(active_coverage);
-        }
-    }
-
-    // Success in each and every POI!
-    return -1;
-}
-
-
-/** K-Coverage Validator that also returns the used sensors in k coverage
- * Very trivial k-coverage validator
- */
-int KCMC_Instance::fast_k_coverage(const int k, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *result_buffer) {
-    // Clear the set of active sensors
-    result_buffer->clear();
-
-    // Base case
-    if (k < 1){return -1;}
-
-    // Start buffers
-    std::unordered_set<int> buffer_set, all_used_sensors;
-    unsigned long active_coverage;
-
-    // For each POI, count its coverage, returning and error if insufficient. Also note all used sensors
-    for (int n_poi=0; n_poi < this->num_pois; n_poi++) {
-        buffer_set = set_diff(poi_sensor[n_poi], inactive_sensors);
-        active_coverage = buffer_set.size();
-        all_used_sensors = set_merge(all_used_sensors, buffer_set);
-        *result_buffer = all_used_sensors;
-        if (active_coverage < k) {
-            return (n_poi*1000000)+(int)(active_coverage);
-        }
-    }
-
-    // Success in each and every POI!
-    return -1;
-}
-
-
-/** K-COVERAGE VALIDATOR
- * Wrapper around the fastest validator, to allow for better process message passing.
- */
-std::string KCMC_Instance::k_coverage(const int k, std::unordered_set<int> &inactive_sensors) {
-    int failure_at = this->fast_k_coverage(k, inactive_sensors);
-    if (failure_at == -1) {return "SUCCESS";}
-    else {
-        std::ostringstream out;
-        int n_poi = failure_at / 1000000, active_coverage = failure_at % 1000000;  // Decode the result
-        out << "POI " << n_poi << " COVERAGE " << active_coverage;
-        return out.str();
-    }
-}
-
-
-/* #####################################################################################################################
- * INSTANCE UTILITY STATIC METHODS
- */
-
-
-/* ISIN (IS IN)
- * A method to determine if a given value is in a given set of values, overloaded for maximum re-usability
- */
-bool isin(std::unordered_map<int, std::unordered_set<int>> &ref, const int item){return ref.find(item) != ref.end();}
-bool isin(std::unordered_map<int, int> &ref, const int item){return ref.find(item) != ref.end();}
-bool isin(std::unordered_set<int> &ref, const int item){return ref.find(item) != ref.end();}
-bool isin(std::unordered_set<std::string> &ref, const std::string &item){return ref.find(item) != ref.end();}  // CANNOT BE A POINTER TO THE SET!
-bool isin(std::vector<int> &ref, const int item){return std::find(ref.begin(), ref.end(), item) != ref.end();}
-bool isin(std::vector<int> *ref, const int item){return std::find(ref->begin(), ref->end(), item) != ref->end();}
-
-
-/* SET DIFF
- * Returns the set that is the difference between the given sets
- */
-std::unordered_set<int> set_diff(const std::unordered_set<int> &left, const std::unordered_set<int> &right) {
-    auto rightend = right.end();
-    std::unordered_set<int> remainder;
-    for (const int &item : left) {
-        if (right.find(item) == rightend) { // If item NOT IN right side
-            remainder.insert(item);
-        }
-    }
-    return remainder;
-}
-
-
-/* DISTANCE
- * Distance between two components, overloaded for maximum re-usability
- */
-double distance(Placement source, Placement target){
-    /** Euclidean distance */
-    return sqrt(pow((source.x - target.x), 2.0)
-              + pow((source.y - target.x), 2.0));
-}
-
-
-/* PUSH
- * Adds and element to an HashMap of Unordered Sets
- */
-void push(std::unordered_map<int, std::unordered_set<int>> &buffer, const int source, const int target){
-    if (isin(buffer, source)){buffer[source].insert(target);}
-    else {
-        std::unordered_set<int> new_set;
-        new_set.insert(target);
-        buffer[source] = new_set;
-    }
-}
-
-
-/* #####################################################################################################################
- * INSTANCE OPERATION
+ * INSTANCE OPERATION & CONSTRUCTORS
  */
 
 
@@ -395,8 +229,42 @@ int KCMC_Instance::parse_edge(const int stage, const std::string& token){
 
 
 /* #####################################################################################################################
- * FUNCTIONAL CLASS SERVICES
+ * FUNCTIONAL CLASS SERVICES & METHODS
  */
+
+
+/** Coverage getter
+ * Gets the coverage at each POI, and the number of POIs with any coverage at all
+ */
+int KCMC_Instance::get_coverage(int buffer[], std::unordered_set<int> &inactive_sensors) {
+
+    // For each POI, count its coverage and if it has coverage at all
+    int has_coverage = 0;
+    for (int n_poi=0; n_poi < this->num_pois; n_poi++) {
+        buffer[n_poi] = (int)(set_diff(poi_sensor[n_poi], inactive_sensors).size());
+        has_coverage += buffer[n_poi] > 0 ? 1 : 0;
+    }
+
+    // Return the number of POIs that have any coverage at all
+    return has_coverage;
+}
+
+
+/** Degree Getter
+ * Gets the degree of each active sensor, and the number of sensors with degre larger than 0
+ */
+int KCMC_Instance::get_degree(int buffer[], std::unordered_set<int> &inactive_sensors) {
+
+    // For each Sensor, count its coverage, returning the number of sensors with any conection at all
+    int has_connection = 0;
+    for (int n_sensor=0; n_sensor < this->num_sensors; n_sensor++) {
+        buffer[n_sensor] = (int)(set_diff(sensor_sensor[n_sensor], inactive_sensors).size());
+        has_connection += 1;
+    }
+
+    // Return the number of Sensors that have any degree at all
+    return has_connection;
+}
 
 
 /** Instance identification utility

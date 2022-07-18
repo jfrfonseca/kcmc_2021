@@ -189,7 +189,7 @@ class KCMC_Instance {
          */
         int local_optima(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *all_used_sensors);
         int flood(int k, int m, bool full, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors);
-        //int reuse(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors);
+        int reuse(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors);
 
     private:
         void regenerate();

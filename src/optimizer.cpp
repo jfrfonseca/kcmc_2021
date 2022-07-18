@@ -67,10 +67,10 @@ int KCMC_Instance::flood(int k, int m, bool full,
     // Reset the results buffer
     visited_sensors->clear();
 
-    // Add all poi-covering sensors to the result buffer
+    // Add all poi-covering sensors to the result buffer, voting them as many times as they cover sensors
     for (a_poi=0; a_poi < this->num_pois; a_poi++) {
         for (const int &a_sensor : this->poi_sensor[a_poi]) {
-            vote(*visited_sensors, a_sensor);
+            vote(*visited_sensors, a_sensor, (int)(this->sensor_poi[a_sensor].size()));
         }
     }
 
@@ -179,4 +179,110 @@ int KCMC_Instance::flood(int k, int m, bool full,
 
     // Success in each and every POI! Return the total of found paths
     return total_paths_found;
+}
+
+
+/** MAX-REUSE
+ * To minimize the number of sensors, we try to maximize reuse of sensors (i.e. the same sensor is used in multiple
+ * connection paths, each from a different POI).
+ * To do that, we run the max-flood method, counting how often each sensor was used (sensor frequency map).
+ * Then, we run dinic's method again, but instead of the distance to the sink we use the sensor frequency map.
+ * The resulting set of sensors will maximize reuse while minimizing distance to the sink.
+ * This is an heuristic method - we might not get the most reduced of all sets of sensors!
+ * However, it is a *fast* method, running in polynomial time even in the worst of cases.
+ */
+
+int KCMC_Instance::reuse(int k, int m,
+                         std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors) {
+
+    // Local buffers
+    int num_paths, inv_frequency_array[this->num_sensors],
+        paths_found, path_end, a_poi, predecessors[this->num_sensors],
+        active_covering_sensors, add_sensor, pre_k_cov_sensors;
+    std::priority_queue<LevelNode, std::vector<LevelNode>, CompareLevelNode> queue;
+
+    // First we clear out the output buffer
+    visited_sensors->clear();
+
+    // Then we get the max-flood of the instance
+    num_paths = this->flood(k, m, true, inactive_sensors, visited_sensors);
+    if (num_paths >= 1000000) {throw std::runtime_error("INVALID NUMBER OF PATHS!");}
+
+    /* Then format the frequency graph as a vector for minimization, similar to the level-graph
+     * This is called the *inverse frequency array* (IFA). It holds no values smaller than 1.
+     * In the IFA, sensors that were not found by the flood method have frequency num_paths
+     * In the IFA, sensors that were found by the flood method have freqeuency num_paths-(orig. frequency)
+     * This inversion is done so the minimization loop can still be used
+     */
+    std::fill(inv_frequency_array, inv_frequency_array + this->num_sensors, num_paths);
+    for (const auto &i : *visited_sensors) {inv_frequency_array[i.first] = num_paths - i.second;}
+
+    // Prepare the set of "used" sensors and clear the map of visited sensors
+    std::unordered_set<int> used_sensors;
+    visited_sensors->clear();
+
+    // Run for each POI, returning at the first failure
+    for (a_poi=0; a_poi < this->num_pois; a_poi++) {
+        paths_found = 0;  // Clear the number of paths found for the POI
+        used_sensors = inactive_sensors;  // Reset the set of used sensors for each POI
+
+        // While there are still paths to be found
+        while (paths_found < m) {
+            std::fill(predecessors, predecessors+this->num_sensors, -2);  // Reset the predecessors buffer
+
+            // Find a path
+            path_end = this->find_path(a_poi, used_sensors, inv_frequency_array, predecessors);
+
+            // If the path ends in an invalid sensor, return the failure.
+            if (path_end == -1) {throw std::runtime_error("COULD NOT FIND ENOUGHT PATHS FOR POI!");}
+            else {
+                paths_found += 1;  // Count the newfound path
+                // Unravel the path, marking each sensor in it as used
+                while (path_end != -1) {
+                    used_sensors.insert(path_end);
+                    vote(*visited_sensors, path_end);  // Get the complete frequency map of all used sensors
+                    path_end = predecessors[path_end];
+                    if (path_end == -2) {throw std::runtime_error("FORBIDDEN ADDRESS!");}
+                }
+            }
+        }
+    }
+    pre_k_cov_sensors = (int)(visited_sensors->size());
+
+    /* Update the IFA
+     * Update the frequencies to the IFA
+     * Increase (thus, subtract from) the frequency of each sensor the number of POIs it covers
+     */
+    std::fill(inv_frequency_array, inv_frequency_array + this->num_sensors, num_paths);
+    for (const auto &i : *visited_sensors) {inv_frequency_array[i.first] = num_paths - i.second;}
+    for (const auto &i : this->sensor_poi) {inv_frequency_array[i.first] -= (int)(i.second.size());}
+
+    /* Add the sensors required to guarantee K-Coverage
+     * Compute the frequency graph into the inverse frequency array
+     * For each POI, for each sensor that covers the POI
+     *     If the sensor is inactive, add it to a priority queue given its value in the inverse frequency array (IFA)
+     * For each POI that does not have enough coverage, add sensors until it has enough coverage.
+     *     Add sensors using the priority queue.
+     *     For each added sensor, decrease its value in the IFA (thus givving it more priority).
+     *     For each added sensor, increase its frequency in the final frequency map of each sensor.
+     */
+    for (a_poi=0; a_poi < this->num_pois; a_poi++) {
+        while (not queue.empty()) {queue.pop();}  // Empty the queue
+        // Count and enqueue the covering sensors
+        active_covering_sensors = 0;
+        for (const int a_sensor : this->poi_sensor[a_poi]) {
+            if (isin(*visited_sensors, a_sensor)) {active_covering_sensors++;}  // Count the active covering sensors
+            else {queue.push({a_sensor, inv_frequency_array[a_sensor]});}  // Add to the queue the inactive sensors
+            if (active_covering_sensors >= k) {break;}  // Stop prematurely if we have enough covering sensors
+        }
+        // Add the first sensors in the queue until we have enough sensors
+        for (add_sensor=active_covering_sensors; add_sensor < k; add_sensor++) {
+            vote(*visited_sensors, queue.top().index);  // Increase the usage of this sensor
+            inv_frequency_array[queue.top().index] -= 1;  // Decrease the frequency of this sensor in the IFA
+            queue.pop();  // Remove the sensor from the queue
+        }
+    }
+
+    // Return the number of otherwise inactive sensors that were added only to guarantee k-coverage
+    return ((int)(visited_sensors->size()))-pre_k_cov_sensors;
 }

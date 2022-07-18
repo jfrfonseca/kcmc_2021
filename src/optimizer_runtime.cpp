@@ -142,5 +142,17 @@ int main(int argc, char* const argv[]) {
                    "max_flood_" + std::to_string(num_paths),  // Add the number of paths found
                    duration, set_used_installation_spots);
 
+    // Process the Reuse mapping of the instance
+    used_installation_spots.clear();
+    start = std::chrono::high_resolution_clock::now();
+    num_paths = instance->reuse(k, m, emptyset, &used_installation_spots);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    set_used_installation_spots.clear();
+    setify(set_used_installation_spots, &used_installation_spots);
+    printout_short(instance, k, m, instance->num_sensors,
+                   "reuse_" + std::to_string(num_paths),  // Add the number of added sensors for k-coverage
+                   duration, set_used_installation_spots);
+
     return 0;
 }

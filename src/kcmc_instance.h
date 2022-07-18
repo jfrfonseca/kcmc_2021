@@ -77,6 +77,7 @@ bool isin(std::vector<int> *ref, int item);
  *       It the source element is alreary in the map, increase the value of its mapped data by 1.
  */
 void push(std::unordered_map<int, std::unordered_set<int>> &buffer, int source, int target);
+void vote(std::unordered_map<int, int> &buffer, int target, int value);
 void vote(std::unordered_map<int, int> &buffer, int target);
 
 
@@ -129,7 +130,7 @@ class KCMC_Instance {
          *     the Nodes that the index node is neighbor of.
          * There are no Poi-Poi, Poi-Sink nor Sink-Sink edges
          */
-        std::unordered_map<int, std::unordered_set<int>> poi_sensor, sensor_sensor, sensor_sink, sink_sensor;
+        std::unordered_map<int, std::unordered_set<int>> poi_sensor, sensor_poi, sensor_sensor, sensor_sink, sink_sensor;
 
         /* Random-instance generator constructor
          * Receives the instance descriptive constants and makes an instance of randomly-placed Nodes.
@@ -188,6 +189,7 @@ class KCMC_Instance {
          */
         int local_optima(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *all_used_sensors);
         int flood(int k, int m, bool full, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors);
+        //int reuse(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors);
 
     private:
         void regenerate();

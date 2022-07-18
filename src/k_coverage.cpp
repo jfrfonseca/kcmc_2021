@@ -70,10 +70,11 @@ void push(std::unordered_map<int, std::unordered_set<int>> &buffer, const int so
 /* VOTE
  * Adds a vote to an element in an unordered map. Adds the element to the map if not there
  */
-void vote(std::unordered_map<int, int> &buffer, const int target){
-    if (isin(buffer, target)){buffer[target] = buffer[target] + 1;}
-    else {buffer[target] = 1;}
+void vote(std::unordered_map<int, int> &buffer, const int target, const int value){
+    if (isin(buffer, target)){buffer[target] = buffer[target] + value;}
+    else {buffer[target] = value;}
 }
+void vote(std::unordered_map<int, int> &buffer, const int target) {vote(buffer, target, 1);}
 
 
 void setify(std::unordered_set<int> &target, int size, int source[], int reference) {
@@ -105,7 +106,7 @@ int KCMC_Instance::fast_k_coverage(const int k, std::unordered_set<int> &inactiv
 
     // For each POI, count its coverage, returning and error if insufficient
     for (int n_poi=0; n_poi < this->num_pois; n_poi++) {
-        active_coverage = set_diff(poi_sensor[n_poi], inactive_sensors).size();
+        active_coverage = set_diff(this->poi_sensor[n_poi], inactive_sensors).size();
         if (active_coverage < k) {
             return (n_poi*1000000)+(int)(active_coverage);
         }
@@ -132,7 +133,7 @@ int KCMC_Instance::fast_k_coverage(const int k, std::unordered_set<int> &inactiv
 
     // For each POI, count its coverage, returning and error if insufficient. Also note all used sensors
     for (int n_poi=0; n_poi < this->num_pois; n_poi++) {
-        buffer_set = set_diff(poi_sensor[n_poi], inactive_sensors);
+        buffer_set = set_diff(this->poi_sensor[n_poi], inactive_sensors);
         active_coverage = buffer_set.size();
         all_used_sensors = set_merge(all_used_sensors, buffer_set);
         *result_buffer = all_used_sensors;

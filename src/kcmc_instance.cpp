@@ -70,6 +70,7 @@ void KCMC_Instance::regenerate() {
         for (j=0; j < this->num_pois; j++) {
             if (distance(pl_sensors[i], pl_pois[j]) <= this->sensor_coverage_radius) {
                 push(this->poi_sensor, j, i);
+                push(this->sensor_poi, i, j);
             }
         }
 
@@ -213,6 +214,7 @@ int KCMC_Instance::parse_edge(const int stage, const std::string& token){
     switch (stage) {
         case 5:
             push(this->poi_sensor, source, target);
+            push(this->sensor_poi, target, source);
             return 5;
         case 6:
             push(this->sensor_sensor, source, target);

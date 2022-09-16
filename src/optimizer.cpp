@@ -192,7 +192,7 @@ int KCMC_Instance::flood(int k, int m, bool full,
  * However, it is a *fast* method, running in polynomial time even in the worst of cases.
  */
 
-int KCMC_Instance::reuse(int k, int m,
+int KCMC_Instance::reuse(int k, int m, int flood_level,
                          std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors) {
 
     // Local buffers
@@ -204,8 +204,13 @@ int KCMC_Instance::reuse(int k, int m,
     // First we clear out the output buffer
     visited_sensors->clear();
 
-    // Then we get the max-flood of the instance
-    num_paths = this->flood(k, m, true, inactive_sensors, visited_sensors);
+    /* Then we get the flood of the instance:
+     * MAX-FLOOD if the flood level is infinite (lower than 0)
+     * NO-FLOOD  if the flood level is 0
+     * MIN-FLOOD if the flood level is 1 (or more)
+     */
+    if (flood_level == 0) {num_paths = this->fast_m_connectivity(m, inactive_sensors, visited_sensors);}
+    else {num_paths = this->flood(k, m, (flood_level < 0), inactive_sensors, visited_sensors);}
     if (num_paths >= 1000000) {throw std::runtime_error("INVALID NUMBER OF PATHS!");}
 
     /* Then format the frequency graph as a vector for minimization, similar to the level-graph
@@ -285,4 +290,41 @@ int KCMC_Instance::reuse(int k, int m,
 
     // Return the number of otherwise inactive sensors that were added only to guarantee k-coverage
     return ((int)(visited_sensors->size()))-pre_k_cov_sensors;
+}
+int KCMC_Instance::reuse(int k, int m,
+                         std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors) {
+    int added_min_r, min_r,  // Buffer for the number of nodes added for K-coverage and the resulting number of nodes
+        added_no_r,  no_r,   // for each pair of buffers, we use one of the reuse variations
+        added_max_r, max_r;
+    std::unordered_map<int, int> min_visited, no_visited, max_visited;
+    std::unordered_set<int> set_used_installation_spots;
+
+    added_min_r = this->reuse(k, m, -1, inactive_sensors, &min_visited);
+    setify(set_used_installation_spots, &min_visited);
+    min_r = (int)(set_used_installation_spots.size());
+    added_no_r  = this->reuse(k, m,  0, inactive_sensors, &no_visited);
+    setify(set_used_installation_spots, &no_visited);
+    no_r = (int)(set_used_installation_spots.size());
+    added_max_r = this->reuse(k, m,  1, inactive_sensors, &max_visited);
+    setify(set_used_installation_spots, &max_visited);
+    max_r = (int)(set_used_installation_spots.size());
+
+    // Return the smallest
+    if (min_r <= no_r) {
+        if (min_r <= max_r) {
+            visited_sensors->insert(min_visited.begin(), min_visited.end());
+            return added_min_r;
+        } else {
+            visited_sensors->insert(max_visited.begin(), max_visited.end());
+            return added_max_r;
+        }
+    } else {
+        if (no_r <= max_r) {
+            visited_sensors->insert(no_visited.begin(), no_visited.end());
+            return added_no_r;
+        } else {
+            visited_sensors->insert(max_visited.begin(), max_visited.end());
+            return added_max_r;
+        }
+    }
 }

@@ -176,6 +176,7 @@ class KCMC_Instance {
         int fast_k_coverage(int k, std::unordered_set<int> &inactive_sensors);
         int fast_k_coverage(int k, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *all_used_sensors);
         std::string k_coverage(int k, std::unordered_set<int> &inactive_sensors);
+        int fast_m_connectivity(int m, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *all_used_sensors);
         int fast_m_connectivity(int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *all_used_sensors);
         std::string m_connectivity(int m, std::unordered_set<int> &inactive_sensors);
 
@@ -189,6 +190,7 @@ class KCMC_Instance {
          */
         int local_optima(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *all_used_sensors);
         int flood(int k, int m, bool full, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors);
+        int reuse(int k, int m, int flood_level, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors);
         int reuse(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors);
 
     private:

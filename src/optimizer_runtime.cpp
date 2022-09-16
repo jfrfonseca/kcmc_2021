@@ -142,16 +142,52 @@ int main(int argc, char* const argv[]) {
                    "max_flood_" + std::to_string(num_paths),  // Add the number of paths found
                    duration, set_used_installation_spots);
 
-    // Process the Reuse mapping of the instance
+    // Process the No-Flood Reuse mapping of the instance
     used_installation_spots.clear();
     start = std::chrono::high_resolution_clock::now();
-    num_paths = instance->reuse(k, m, emptyset, &used_installation_spots);
+    num_paths = instance->reuse(k, m, 0,emptyset, &used_installation_spots);
     end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     set_used_installation_spots.clear();
     setify(set_used_installation_spots, &used_installation_spots);
     printout_short(instance, k, m, instance->num_sensors,
-                   "reuse_" + std::to_string(num_paths),  // Add the number of added sensors for k-coverage
+                   "no_reuse_" + std::to_string(num_paths),  // Add the number of added sensors for k-coverage
+                   duration, set_used_installation_spots);
+
+    // Process the Min-Flood Reuse mapping of the instance
+    used_installation_spots.clear();
+    start = std::chrono::high_resolution_clock::now();
+    num_paths = instance->reuse(k, m, 1,emptyset, &used_installation_spots);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    set_used_installation_spots.clear();
+    setify(set_used_installation_spots, &used_installation_spots);
+    printout_short(instance, k, m, instance->num_sensors,
+                   "min_reuse_" + std::to_string(num_paths),  // Add the number of added sensors for k-coverage
+                   duration, set_used_installation_spots);
+
+    // Process the Max-Flood Reuse mapping of the instance
+    used_installation_spots.clear();
+    start = std::chrono::high_resolution_clock::now();
+    num_paths = instance->reuse(k, m, -1,emptyset, &used_installation_spots);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    set_used_installation_spots.clear();
+    setify(set_used_installation_spots, &used_installation_spots);
+    printout_short(instance, k, m, instance->num_sensors,
+                   "max_reuse_" + std::to_string(num_paths),  // Add the number of added sensors for k-coverage
+                   duration, set_used_installation_spots);
+
+    // Process the Best-Reuse mapping of the instance
+    used_installation_spots.clear();
+    start = std::chrono::high_resolution_clock::now();
+    num_paths = instance->reuse(k, m,emptyset, &used_installation_spots);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    set_used_installation_spots.clear();
+    setify(set_used_installation_spots, &used_installation_spots);
+    printout_short(instance, k, m, instance->num_sensors,
+                   "best_reuse_" + std::to_string(num_paths),  // Add the number of added sensors for k-coverage
                    duration, set_used_installation_spots);
 
     return 0;

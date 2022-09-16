@@ -108,9 +108,10 @@ int KCMC_Instance::find_path(const int poi_number, std::unordered_set<int> &used
  * We do, however, note every single sensor used anywhere in the resulting WSN
  */
 int KCMC_Instance::fast_m_connectivity(const int m, std::unordered_set<int> &inactive_sensors,
-                                       std::unordered_set<int> *all_used_sensors) {
+                                       std::unordered_map<int, int> *all_used_sensors) {
     /** Verify if every POI has at least M different disjoint paths to all SINKs
      */
+     int total_paths_found = 0;
     // Clear the set of active sensors
     all_used_sensors->clear();
 
@@ -146,10 +147,11 @@ int KCMC_Instance::fast_m_connectivity(const int m, std::unordered_set<int> &ina
             // If success, count the path and mark all the sensors with predecessors as "used"
             } else {
                 paths_found += 1;  // Count the newfound path
+                total_paths_found += 1;
                 // Unravel the path, marking each sensor in it as used
                 while (path_end != -1) {
                     used_sensors.insert(path_end);
-                    all_used_sensors->insert(path_end);  // Get the complete list of all used sensors
+                    vote(*all_used_sensors, path_end);  // Get the complete list of all used sensors
                     path_end = predecessors[path_end];
                     if (path_end == -2) {throw std::runtime_error("FORBIDDEN ADDRESS!");}
                 }
@@ -158,8 +160,21 @@ int KCMC_Instance::fast_m_connectivity(const int m, std::unordered_set<int> &ina
     }
 
     // Success in each and every POI!
-    return -1;
+    return total_paths_found;
 }
+int KCMC_Instance::fast_m_connectivity(const int m, std::unordered_set<int> &inactive_sensors,
+                                       std::unordered_set<int> *all_used_sensors) {
+    // Run with a map
+    std::unordered_map<int, int> buffer;
+    int result = this->fast_m_connectivity(m, inactive_sensors, &buffer);
+    // adjust the result
+    if (result < 1000000) {result = -1;}  // WE MUST HAVE FEWER THAN A MILLION PATHS!
+    // Revert back to set
+    all_used_sensors->clear();
+    for (const auto i : buffer) {all_used_sensors->insert(i.first);}
+    return result;
+}
+
 
 /** M-CONNECTIVITY VALIDATOR USING DINIC'S ALGORITHM
  * Wrapper around the fastest validator, to allow for better process message passing.
@@ -175,7 +190,6 @@ std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &
         return out.str();
     }
 }
-
 
 
 /** Connectivity getter

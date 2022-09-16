@@ -49,6 +49,21 @@ services:
       - ./src:/home/gurobi/src:ro
       - ./builds:/app:ro
 
+  fast_optimizer:
+    profiles:
+      - fast_optimizer
+    build:
+      dockerfile: gurobi.dockerfile
+      context: .
+    command: "/home/gurobi/src/run_optimizer.sh"
+    environment:
+      PYTHONPATH: "/home/gurobi/src"
+    volumes:
+      - ./data/results:/results:rw
+      - ./data:/data:ro
+      - ./src:/home/gurobi/src:ro
+      - ./builds:/app:ro
+
   notebook:
     profiles:
       - notebook

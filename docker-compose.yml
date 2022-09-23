@@ -68,7 +68,7 @@ services:
     profiles:
       - parser
     build:
-      dockerfile: gurobi.dockerfile
+      dockerfile: notebook.dockerfile
       context: .
     command: "python -u /home/gurobi/src/parse_results.py"
     environment:

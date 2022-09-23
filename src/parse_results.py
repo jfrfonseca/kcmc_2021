@@ -127,7 +127,7 @@ json_files = sorted([f for f in dir_files if f.endswith('.json') and f not in pr
 pool = multiprocessing.Pool()
 parsed_results = list(
     tqdm(
-        pool.imap_unordered(parse_file, json_files),
+        pool.imap_unordered(wrap_parse_file, json_files),
         total=len(json_files)
     )
 )

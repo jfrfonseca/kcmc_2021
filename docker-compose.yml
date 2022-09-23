@@ -70,7 +70,7 @@ services:
     build:
       dockerfile: notebook.dockerfile
       context: .
-    command: "python -u /home/gurobi/src/parse_results.py"
+    entrypoint: ["python", "-u", "/home/gurobi/src/parse_results.py"]
     environment:
       PYTHONPATH: "/home/gurobi/src"
     volumes:

@@ -69,7 +69,7 @@ def parse_file(file):
         # heuristic_solution_quality
         gurobi_optimal=bool(raw_data['status'] == 'OPTIMAL'),
         gurobi_heuristic_objective_value=gurobi_heuristic_objective_value,
-        gurobi_objective_value=float(raw_data['objective_value']),
+        gurobi_objective_value=float(raw_data['objective_value']) if raw_data['objective_value'] is not None else None,
         gurobi_solution=solution,
         solution=solution,
         # solution_size
@@ -112,6 +112,13 @@ def parse_file(file):
     )
 
 
+def wrap_parse_file(file):
+    try:
+        return parse_file(file)
+    except Exception as exp:
+        print(f'EXCEPTION ON FILE {file}: {exp}')
+        return None
+
 pre_df = pd.read_parquet('/home/gurobi/src/results.pq') if os.path.exists('/home/gurobi/src/results.pq') else None
 pre_parsed_files = set(pre_df['source_file']) if pre_df is not None else set()
 dir_files = os.listdir('/data/results')
@@ -126,7 +133,7 @@ parsed_results = list(
 )
 pool.close()
 
-df = pd.DataFrame([d.to_dict() for d in parsed_results])
+df = pd.DataFrame([d.to_dict() for d in parsed_results if d is not None])
 df = df[sorted(df.columns)].copy()
 
 len(dir_files), len(json_files), len(df), df.columns

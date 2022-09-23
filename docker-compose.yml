@@ -64,6 +64,21 @@ services:
       - ./src:/home/gurobi/src:ro
       - ./builds:/app:ro
 
+  parser:
+    profiles:
+      - parser
+    build:
+      dockerfile: gurobi.dockerfile
+      context: .
+    command: "python -u /home/gurobi/src/parse_results.py"
+    environment:
+      PYTHONPATH: "/home/gurobi/src"
+    volumes:
+      - ./data/results:/results:ro
+      - ./data:/data:ro
+      - ./src:/home/gurobi/src:rw
+      - ./builds:/app:ro
+
   notebook:
     profiles:
       - notebook

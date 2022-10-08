@@ -8,7 +8,7 @@ import pandas as pd
 
 from gurobi_models import KCMC_Result, GurobiModelWrapper
 
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 from datetime import timedelta
 
 
@@ -119,23 +119,39 @@ def wrap_parse_file(file):
         print(f'EXCEPTION ON FILE {file}: {exp}')
         return None
 
-pre_df = pd.read_parquet('/home/gurobi/src/results.pq') if os.path.exists('/home/gurobi/src/results.pq') else None
+PARSE_TARGET = '/home/gurobi/src/results/parsed.parquet'
+BUFFER_SIZE = 100
+if os.path.exists(PARSE_TARGET):
+    pre_df = pd.read_parquet(PARSE_TARGET)
+else:
+    os.makedirs(PARSE_TARGET)
+    pre_df = None
 pre_parsed_files = set(pre_df['source_file']) if pre_df is not None else set()
 dir_files = os.listdir('/data/results')
 json_files = sorted([f for f in dir_files if f.endswith('.json') and f not in pre_parsed_files])
 
+print(f'GOT {len(json_files)} FILES')
+
 pool = multiprocessing.Pool()
-parsed_results = list(
-    tqdm(
-        pool.imap_unordered(wrap_parse_file, json_files),
-        total=len(json_files)
-    )
-)
+counter = len(os.listdir(PARSE_TARGET))
+buffer = []
+with tqdm(total=1+int(len(json_files)/BUFFER_SIZE)) as bbar:
+    with tqdm(total=len(json_files)) as pbar:
+        for item in pool.imap_unordered(wrap_parse_file, json_files):
+            buffer.append(item)
+            pbar.update(1)
+            if len(buffer) >= BUFFER_SIZE:
+                # print(f'BUFFER DUMP {counter}')
+                df = pd.DataFrame([d.to_dict() for d in buffer if d is not None]).to_parquet(os.path.join(PARSE_TARGET, f'{counter}.pq'))
+                counter += 1
+                buffer = []
+                bbar.update(1)
+
+    if len(buffer) >= 0:
+        # print(f'BUFFER DUMP {counter}')
+        df = pd.DataFrame([d.to_dict() for d in buffer if d is not None]).to_parquet(os.path.join(PARSE_TARGET, f'{counter}.pq'))
+        counter += 1
+        buffer = []
+        bbar.update(1)
+
 pool.close()
-
-df = pd.DataFrame([d.to_dict() for d in parsed_results if d is not None])
-df = df[sorted(df.columns)].copy()
-
-len(dir_files), len(json_files), len(df), df.columns
-if pre_df is not None: df = pre_df.append(df).drop_duplicates().reset_index(drop=True)
-df.to_parquet('/home/gurobi/src/results.pq')

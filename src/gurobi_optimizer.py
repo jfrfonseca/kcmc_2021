@@ -155,7 +155,11 @@ if __name__ == '__main__':
 
         # If the model has a preprocessing stage, preprocess it
         if prep_stage:
-            new_instance = instance.preprocess(kcmc_k, kcmc_m, prep_stage, raw=False)
+            try:
+                new_instance = instance.preprocess(kcmc_k, kcmc_m, prep_stage, raw=False, fail_if_invalid=True)
+            except KeyError as kerr:
+                print(f'\tINVALID PREPROCESSING {prep_stage} ON INSTANCE {key}')
+                continue
             preprocessing = instance._prep.copy()
 
             # Notify the PRE processing of the instance

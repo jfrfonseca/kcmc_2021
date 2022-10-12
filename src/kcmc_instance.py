@@ -47,10 +47,11 @@ def get_preprocessing(pois, sensors, sinks, area_side, sensor_coverage_radius, s
                       kcmc_k, kcmc_m, executable='/app/optimizer'):
 
     # Run the C++ package
+    instance_key = f'KCMC;{pois} {sensors} {sinks}; {area_side} {sensor_coverage_radius} {sensor_communication_radius};{random_seed};END'
     out = subprocess.Popen(
         list(map(str, [
             executable,
-            f'KCMC;{pois} {sensors} {sinks}; {area_side} {sensor_coverage_radius} {sensor_communication_radius};{random_seed};END',
+            instance_key,
             kcmc_k, kcmc_m
         ])),
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT
@@ -60,7 +61,6 @@ def get_preprocessing(pois, sensors, sinks, area_side, sensor_coverage_radius, s
     stdout,stderr = out.communicate()
     assert (len(stdout) > 10) and (stderr is None), f'ERROR ON THE INSTANCE REGENERATOR.\nSTDOUT:{stdout}\n\nSTDERR:{stderr}'
     result = {}
-    if 'INVALID' in stdout.decode(): return {}
     for line in stdout.decode().strip().splitlines():
         content = line.lower().strip().split('\t')[3:]
         assert len(content) == 6, f'INVALID LINE.\nSTDOUT:{stdout.decode()}\n\nSTDERR:{stderr}'
@@ -72,7 +72,7 @@ def get_preprocessing(pois, sensors, sinks, area_side, sensor_coverage_radius, s
             item['num_paths'] = int(num_paths)
 
         # Normalize the values and store
-        item['valid_result'] = item['valid_result'] == 'OK'
+        item['valid_result'] = str(item['valid_result']).upper() == 'OK'
         item['runtime_us'] = int(item['runtime_us'])
         item['num_used_sensors'] = int(item['num_used_sensors'])
         item['compression_rate'] = float(item['compression_rate'])
@@ -296,7 +296,7 @@ class KCMC_Instance(object):
 
     # SERVICES #########################################################################################################
 
-    def preprocess(self, k, m, prep_method:str, raw=True):
+    def preprocess(self, k, m, prep_method:str, raw=True, fail_if_invalid=True):
 
         # Memoize the preprocessing
         if self._prep is None:
@@ -307,7 +307,7 @@ class KCMC_Instance(object):
             )
 
         # If we have a valid preprocessing:
-        if len(self._prep) > 0:
+        if (len(self._prep) > 0) and self._prep.get(prep_method, {}).get('valid_result', False):
 
             # Return the raw result if required
             if raw: return self._prep[prep_method]
@@ -318,6 +318,7 @@ class KCMC_Instance(object):
 
         # If invalid preprocessing
         else:
+            if fail_if_invalid: raise KeyError(f'Invalid preprocessing method on instance {self.key_str}: {prep_method}')
             if raw: return {
                 'method': prep_method,
                 'runtime_us': 1_000_000,

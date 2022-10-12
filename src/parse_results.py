@@ -126,14 +126,15 @@ if os.path.exists(PARSE_TARGET):
 else:
     os.makedirs(PARSE_TARGET)
     pre_df = None
-pre_parsed_files = set(pre_df['source_file']) if pre_df is not None else set()
+pre_parsed_files = set([os.path.basename(fil) for fil in pre_df['source_file']]) if pre_df is not None else set()
 dir_files = os.listdir('/data/results')
-json_files = sorted([f for f in dir_files if f.endswith('.json') and f not in pre_parsed_files])
+json_files = sorted([f for f in dir_files if f.endswith('.json') and os.path.basename(f) not in pre_parsed_files])
 
 print(f'GOT {len(json_files)} FILES')
 
 pool = multiprocessing.Pool()
 counter = len(os.listdir(PARSE_TARGET))
+print(f'ALREADY GOT {counter} PARQUET SHARDS')
 buffer = []
 with tqdm(total=1+int(len(json_files)/BUFFER_SIZE)) as bbar:
     with tqdm(total=len(json_files)) as pbar:
@@ -147,7 +148,7 @@ with tqdm(total=1+int(len(json_files)/BUFFER_SIZE)) as bbar:
                 buffer = []
                 bbar.update(1)
 
-    if len(buffer) >= 0:
+    if len(buffer) > 0:
         # print(f'BUFFER DUMP {counter}')
         df = pd.DataFrame([d.to_dict() for d in buffer if d is not None]).to_parquet(os.path.join(PARSE_TARGET, f'{counter}.pq'))
         counter += 1

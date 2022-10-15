@@ -81,7 +81,7 @@ void vote(std::unordered_map<int, int> &buffer, int target, int value);
 void vote(std::unordered_map<int, int> &buffer, int target);
 
 
-/* SET MERGE
+/* SET MERGE & DIFF
  * Returns the set that is the sum (or difference) of the given sets
  */
 template<class T>

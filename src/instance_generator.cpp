@@ -30,7 +30,7 @@ void help(int argc, char* const argv[]) {
     std::cout << "area > 0.0 is the int length of the square area where features will be placed" << std::endl;
     std::cout << "cov_r > 0.0 is the int radius around a Sensor where it can cover POIs" << std::endl;
     std::cout << "com_r > 0.0 is the int radius around a Sensor where it can communicate with other Sensors or Sinks" << std::endl << std::endl;
-    std::cout << "seed is an integer number that is uded as seed of the PRNG." << std::endl;
+    std::cout << "seed is an integer number that is used as seed of the PRNG." << std::endl;
     std::cout << "++ If more than one seed is provided, many instances will be generated" << std::endl;
     std::cout << "++ If a single instance is provided, its de-serialization will be tested" << std::endl;
     exit(0);

@@ -88,11 +88,7 @@ int KCMC_Instance::flood(int k, int m, bool full,
             // Find a path
             path_end = this->find_path(a_poi, used_sensors, level_graph, predecessors);
 
-            // Reset the control buffers
-            next_i = -1;
-            path_length = 0;
-
-            // If the path ends in an invalid sensor, mark the loop to end. If we do not have enough paths, throu error
+            // If the path ends in an invalid sensor, mark the loop to end. If we do not have enough paths, throw error
             if (path_end == -1) {
                 break_loop = true;
                 if (paths_found < m) { throw std::runtime_error("INVALID INSTANCE! (INSUFFICIENT CONNECTIVITY)"); }
@@ -100,7 +96,13 @@ int KCMC_Instance::flood(int k, int m, bool full,
 
             // If it is a sucessful path
             else {
-                paths_found += 1;  // Count the newfound path
+
+                // Reset the control buffers
+                next_i = -1;
+                path_length = 0;
+
+                // Increase the counters with the newly found path
+                paths_found += 1;
                 total_paths_found += 1;
 
                 // Unravel the path, marking each sensor in it as used and flooding it
@@ -238,8 +240,8 @@ int KCMC_Instance::reuse(int k, int m, int flood_level,
             // Find a path
             path_end = this->find_path(a_poi, used_sensors, inv_frequency_array, predecessors);
 
-            // If the path ends in an invalid sensor, return the failure.
-            if (path_end == -1) {throw std::runtime_error("COULD NOT FIND ENOUGHT PATHS FOR POI!");}
+            // If the path ends in an invalid sensor
+            if (path_end == -1) {throw std::runtime_error("COULD NOT FIND ENOUGH PATHS FOR POI!");}
             else {
                 paths_found += 1;  // Count the newfound path
                 // Unravel the path, marking each sensor in it as used

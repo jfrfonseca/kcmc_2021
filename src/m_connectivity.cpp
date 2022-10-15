@@ -68,7 +68,7 @@ int KCMC_Instance::find_path(const int poi_number, std::unordered_set<int> &used
     std::priority_queue<LevelNode, std::vector<LevelNode>, CompareLevelNode> queue;
 
     // Prepare a queue with each active unused sensor that covers the POI
-    // Also add each sensor to the predecessors map, having "-1" as the predecessor
+    // Add each of those sensors to the predecessors map having "-1" as the predecessor, meaning "the POI is the predecessor"
     for (const int &a_sensor : this->poi_sensor[poi_number]) {
         if (not isin(used_sensors, a_sensor)) {
             queue.push({a_sensor, level_graph[a_sensor]});
@@ -82,15 +82,17 @@ int KCMC_Instance::find_path(const int poi_number, std::unordered_set<int> &used
         i_sensor = queue.top().index;
         queue.pop();
 
-        // If the sensor is neighbor of a sink, return the path
+        // If the sensor is neighbor of a sink, return the sensor as the beginning of the path
         if (isin(this->sensor_sink, i_sensor)) {return i_sensor;}
 
-        // Add the unvisited active neighbors of the sensor to the queue
-        // Each sensor is also added to the predecessors map
+        // For each neighbor of the top sensor, if the neighbor has not been used or visited yet,
+        // Add the unvisited active neighbor to the queue and the top sensor as its predecessor
         for (const int &neighbor : this->sensor_sensor[i_sensor]) {
             if ((not isin(used_sensors, neighbor)) and (predecessors[neighbor] == -2)){
                 queue.push({neighbor, level_graph[neighbor]});
                 predecessors[neighbor] = i_sensor;
+                // If the neighbor is sink-adjacent, we can return it directly
+                if (isin(this->sensor_sink, neighbor)) {return neighbor;}
             }
         }
     }
@@ -142,7 +144,7 @@ int KCMC_Instance::fast_m_connectivity(const int m, std::unordered_set<int> &ina
 
             // If the path ends in an invalid sensor, return the failure.
             if (path_end == -1) {
-                return (a_poi*1000000)+paths_found;  // Encoded the two ints. We must not have more than a Million POIs!
+                return ((1+a_poi)*1000000)+paths_found;  // Encoded the two ints. We must not have more than a Million POIs!
 
             // If success, count the path and mark all the sensors with predecessors as "used"
             } else {
@@ -185,7 +187,7 @@ std::string KCMC_Instance::m_connectivity(const int m, std::unordered_set<int> &
     if (failure_at == -1) {return "SUCCESS";}
     else {
         std::ostringstream out;
-        int a_poi = failure_at / 1000000, paths_found = failure_at % 1000000;  // Decode the result
+        int a_poi = (failure_at / 1000000)-1, paths_found = failure_at % 1000000;  // Decode the result
         out << "POI " << a_poi << " CONNECTIVITY " << paths_found;
         return out.str();
     }

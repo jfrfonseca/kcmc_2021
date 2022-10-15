@@ -340,17 +340,25 @@ bool KCMC_Instance::validate(const bool raise, const int k, const int m,
                              std::unordered_set<int> &inactive_sensors,
                              std::unordered_set<int> *k_used_sensors,
                              std::unordered_set<int> *m_used_sensors) {
+    int valid;
 
     // Check validity, recovering the used sensors for K coverage and M connectivity
-    int valid = this->fast_k_coverage(k, inactive_sensors, k_used_sensors);
-    if (valid != -1) {
-        if (raise) { throw std::runtime_error("INVALID INSTANCE! (INSUFFICIENT COVERAGE)"); }
-        else { return false; }
+    try {
+        valid = this->fast_k_coverage(k, inactive_sensors, k_used_sensors);
+        if (valid != -1) { throw std::runtime_error("INVALID INSTANCE! (INSUFFICIENT COVERAGE)"); }
     }
-    valid = this->fast_m_connectivity(m, inactive_sensors, m_used_sensors);
-    if (valid != -1) {
-        if (raise) { throw std::runtime_error("INVALID INSTANCE! (INSUFFICIENT CONNECTIVITY)"); }
-        else { return false; }
+    catch (const std::exception &exc) {
+        if (raise) {throw std::runtime_error("INVALID INSTANCE! (INSUFFICIENT COVERAGE)");}
+        else {return false;}
+    }
+
+    try {
+        valid = this->fast_m_connectivity(m, inactive_sensors, m_used_sensors);
+        if (valid != -1) { throw std::runtime_error("INVALID INSTANCE! (INSUFFICIENT CONNECTIVITY)"); }
+    }
+    catch (const std::exception &exc) {
+        if (raise) {throw std::runtime_error("INVALID INSTANCE! (INSUFFICIENT CONNECTIVITY)");}
+        else {return false;}
     }
     return true;
 }

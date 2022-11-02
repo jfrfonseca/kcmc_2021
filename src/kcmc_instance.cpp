@@ -17,6 +17,50 @@
  * INSTANCE OPERATION & CONSTRUCTORS
  */
 
+/** RANDOM-INSTANCE COMPONET PLACEMENTS (RE)GENERATOR
+ * Generates the instance's components placements, assuming the instance already have all main attributes.
+ * THE PLACEMENTS WILL BE USED TO COMPUTE THE EDGES
+ */
+void KCMC_Instance::get_placements(Placement *pl_pois, Placement *pl_sensors, Placement *pl_sinks, bool push) {
+
+    // Iteration buffers
+    int i;
+
+    // Prepare the random number generators
+    std::mt19937 gen(this->random_seed);
+    std::uniform_real_distribution<> point(0, this->area_side);
+
+    // Set the POIs buffers
+    for (i=0; i<this->num_pois; i++) {
+        Node a_poi = {tPOI, i};
+        if (push) {this->poi.push_back(a_poi);}
+        pl_pois[i] = {&a_poi, (int)(point(gen)), (int)(point(gen))};
+    }
+
+    // Set the SENSORs buffers
+    for (i=0; i<this->num_sensors; i++) {
+        Node a_sensor = {tSENSOR, i};
+        if (push) {this->sensor.push_back(a_sensor);}
+        pl_sensors[i] = {&a_sensor, (int)(point(gen)), (int)(point(gen))};
+    }
+
+    // Set the SINKs buffers (if there is a single sink, it will be at the center of the area)
+    if (this->num_sinks == 1) {
+        Node a_sink = {tSINK, 0};
+        if (push) {this->sink.push_back(a_sink);}
+        pl_sinks[0] = {&a_sink, (int)(this->area_side / 2.0), (int)(this->area_side / 2.0)};
+    } else {
+        for (i=0; i<this->num_sinks; i++) {
+            Node a_sink = {tSINK, i};
+            if (push) {this->sink.push_back(a_sink);}
+            pl_sinks[i] = {&a_sink, (int)(point(gen)), (int)(point(gen))};
+        }
+    }
+}
+void KCMC_Instance::get_placements(Placement *pl_pois, Placement *pl_sensors, Placement *pl_sinks) {
+    this->get_placements(pl_pois, pl_sensors, pl_sinks, false);
+}
+
 
 /** RANDOM-INSTANCE (RE)GENERATOR
  * Generates the instance's placements and edges, assuming the instance already have all main attributes
@@ -26,42 +70,14 @@ void KCMC_Instance::regenerate() {
      * This constructor is used only to generate a new random instance that already has the seed attributes
      */
 
-    // Iteration buffers
+    // Prepare iteration buffers
     int i, j;
 
     // Prepare the placement buffers. The scope of these buffers is only the constructor itself
     Placement pl_pois[this->num_pois], pl_sensors[this->num_sensors], pl_sinks[this->num_sinks];
 
-    // Prepare the random number generators
-    std::mt19937 gen(this->random_seed);
-    std::uniform_real_distribution<> point(0, this->area_side);
-
-    // Set the POIs buffers
-    for (i=0; i<this->num_pois; i++) {
-        Node a_poi = {tPOI, i};
-        this->poi.push_back(a_poi);
-        pl_pois[i] = {&a_poi, (int)(point(gen)), (int)(point(gen))};
-    }
-
-    // Set the SENSORs buffers
-    for (i=0; i<this->num_sensors; i++) {
-        Node a_sensor = {tSENSOR, i};
-        this->sensor.push_back(a_sensor);
-        pl_sensors[i] = {&a_sensor, (int)(point(gen)), (int)(point(gen))};
-    }
-
-    // Set the SINKs buffers (if there is a single sink, it will be at the center of the area)
-    if (this->num_sinks == 1) {
-        Node a_sink = {tSINK, 0};
-        this->sink.push_back(a_sink);
-        pl_sinks[0] = {&a_sink, (int)(this->area_side / 2.0), (int)(this->area_side / 2.0)};
-    } else {
-        for (i=0; i<this->num_sinks; i++) {
-            Node a_sink = {tSINK, i};
-            this->sink.push_back(a_sink);
-            pl_sinks[i] = {&a_sink, (int)(point(gen)), (int)(point(gen))};
-        }
-    }
+    // Get the placemens of the instance objects
+    this->get_placements(pl_pois, pl_sensors, pl_sinks, true);  // Use the private version, that pushes components
 
     // Iterate each sensor and find its connections
     for (i=0; i<this->num_sensors; i++) {

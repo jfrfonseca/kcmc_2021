@@ -89,6 +89,10 @@ def reset_process_queue(instances_file:str, models_list:list, s3_client):
             key = f'KCMC;{key[1]} {key[2]} {key[3]};{key[4]} {key[5]} {key[6]};{key[7]};END'
             existing_results.append((key, kcmc_k, kcmc_m, model_name))
 
+    with open('/data/done.json', 'r') as fin:
+        done = json.load(fin)
+    existing_results += [tuple(i) for i in done]
+
     # Find the resulting queue
     process_queue = sorted(list(set(process_queue) - set(existing_results)))
     print(f'PROCESS QUEUE HAS {len(process_queue)} ({len(existing_results)} already done)')

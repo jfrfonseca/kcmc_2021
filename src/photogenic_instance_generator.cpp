@@ -44,12 +44,13 @@ int main(int argc, char* const argv[]) {
      * ======================== */
 
     /* Prepare Buffers */
+    bool must_break;
     int attempt, num_pois, num_sensors, num_sinks, area_side, coverage_radius, communication_radius, k, m,
-        MAX_TRIES=100000, invalid_count=0;
+        MAX_TRIES=200000, invalid_count=0, compare_buffer[7], i, j, last_print, valid_cases, level_graph[10000],
+        algo_results[7][10000];
     long long random_seed;
-    std::unordered_set<int> emptyset, ignoredset, seed_sensors,
-                            set_dinic, set_min_flood, set_max_flood,
-                            set_no_reuse, set_min_reuse, set_max_reuse, set_best_reuse;
+    std::string name_map[7];
+    std::unordered_set<int> emptyset, ignoredset, seed_sensors, set_dinic;
     std::unordered_map<int, int> used_installation_spots;
 
     /* Parse CMD SETTINGS */
@@ -70,14 +71,29 @@ int main(int argc, char* const argv[]) {
 
     /* ================== *
      * GENERATE INSTANCES *
+     * - 3 20 1;300 50 100;7150115257
+     * - 3 25 1;300 50 100;986917529
+     *
+     * UNFIXED
+     * - 3 20 1;300 50 100;222551069
+     * - 3 20 1;300 50 100;6752538684
+     * - 3 20 1;300 50 100;11014816988
+     * - 3 21 1;300 50 100;335057979
+     * - 3 21 1;300 50 100;2211105303
+     * - 3 25 1 300 50 100 3 2 358542789
      * ================== */
 
+    last_print = 0;
     for (attempt=0; attempt<MAX_TRIES; attempt++) {
-        if (argc <= 9) {random_seed = random_seed + std::abs((rand() % 100000)) + 7 + attempt;}
+        if (argc <= 9) { random_seed = random_seed + std::abs((rand() % 100000)) + 7 + attempt; }
         auto *instance = new KCMC_Instance(num_pois, num_sensors, num_sinks,
                                            area_side, coverage_radius, communication_radius,
                                            random_seed);
-        if ((attempt % 10000) == 0) {std::cout << "Attempt " << attempt << " (v" << attempt-invalid_count << ") Seed " << random_seed << std::endl;}
+        valid_cases = attempt - invalid_count;
+        if ((((attempt % 5000) == 0) or ((valid_cases % 50) == 0)) and (valid_cases != last_print)) {
+            std::cout << "Attempt " << attempt << " (v" << valid_cases << ") Seed " << random_seed << std::endl;
+            last_print = valid_cases;
+        }
         if (not instance->validate(false, k, m)) {
             invalid_count += 1;
             continue;
@@ -86,63 +102,140 @@ int main(int argc, char* const argv[]) {
         /* Here, the instance is VALID. We now need it to be photogenic.
          * A photogenic instance has different results for each preprocessing algorithm */
 
-        // DINIC
-        instance->local_optima(k, m, emptyset, &set_dinic);
+        try {
+            // DINIC
+            name_map[0] = "DINIC";
+            instance->local_optima(k, m, emptyset, &set_dinic);
+            compare_buffer[0] = (int) set_dinic.size();
+            for (i=0; i<num_sensors; i++) {algo_results[0][i] = (isin(set_dinic, i)) ? 1:0;}
 
-        // Min-Flood
-        used_installation_spots.clear();
-        instance->flood(k, m, false, emptyset, &used_installation_spots);
-        setify(set_min_flood, &used_installation_spots);
+            // Min-Flood
+            name_map[1] = "MIN-FLOOD";
+            used_installation_spots.clear();
+            instance->flood(k, m, false, emptyset, &used_installation_spots);
+            compare_buffer[1] = (int) used_installation_spots.size();
+            for (i=0; i<num_sensors; i++) {algo_results[1][i] = (isin(used_installation_spots, i)) ? 1:0;}
 
-        // Max-Flood
-        used_installation_spots.clear();
-        instance->flood(k, m, true, emptyset, &used_installation_spots);
-        setify(set_max_flood, &used_installation_spots);
+            // Speed-Up the most common case 01
+            if (compare_buffer[0] == compare_buffer[1]) {continue;}
 
-        // No-Flood Reuse
-        used_installation_spots.clear();
-        instance->reuse(k, m, 0,emptyset, &used_installation_spots);
-        setify(set_no_reuse, &used_installation_spots);
+            // Max-Flood
+            name_map[2] = "MAX-FLOOD";
+            used_installation_spots.clear();
+            instance->flood(k, m, true, emptyset, &used_installation_spots);
+            compare_buffer[2] = (int) used_installation_spots.size();
+            for (i=0; i<num_sensors; i++) {algo_results[2][i] = (isin(used_installation_spots, i)) ? 1:0;}
 
-        // Min-Flood Reuse
-        used_installation_spots.clear();
-        instance->reuse(k, m, 1,emptyset, &used_installation_spots);
-        setify(set_min_reuse, &used_installation_spots);
+            // Speed-Up the third most common case 12
+            if (compare_buffer[1] == compare_buffer[2]) {continue;}
 
-        // Max-Flood Reuse
-        used_installation_spots.clear();
-        instance->reuse(k, m, -1,emptyset, &used_installation_spots);
-        setify(set_max_reuse, &used_installation_spots);
+            // No-Flood Reuse
+            name_map[3] = "NO-FLOOD REUSE";
+            used_installation_spots.clear();
+            instance->reuse(k, m, 0, emptyset, &used_installation_spots);
+            compare_buffer[3] = (int) used_installation_spots.size();
+            for (i=0; i<num_sensors; i++) {algo_results[3][i] = (isin(used_installation_spots, i)) ? 1:0;}
 
-        // Best-Reuse
-        used_installation_spots.clear();
-        instance->reuse(k, m,emptyset, &used_installation_spots);
-        setify(set_best_reuse, &used_installation_spots);
+            // Speed-Up the forth most common case 03
+            if (compare_buffer[0] == compare_buffer[3]) {continue;}
 
-        // Check if all sets are different (except for best-reuse, that equals one of {no, min or max}-reuse)
-        if (set_diff(set_dinic, set_min_flood).empty()) {continue;}
-        if (set_diff(set_dinic, set_max_flood).empty()) {continue;}
-        if (set_diff(set_dinic, set_no_reuse).empty()) {continue;}
-        if (set_diff(set_dinic, set_min_reuse).empty()) {continue;}
-        if (set_diff(set_dinic, set_max_reuse).empty()) {continue;}
+            // Min-Flood Reuse
+            name_map[4] = "MIN-FLOOD REUSE";
+            used_installation_spots.clear();
+            instance->reuse(k, m, 1, emptyset, &used_installation_spots);
+            compare_buffer[4] = (int) used_installation_spots.size();
+            for (i=0; i<num_sensors; i++) {algo_results[4][i] = (isin(used_installation_spots, i)) ? 1:0;}
 
-        if (set_diff(set_min_flood, set_max_flood).empty()) {continue;}
-        if (set_diff(set_min_flood, set_no_reuse).empty()) {continue;}
-        if (set_diff(set_min_flood, set_min_reuse).empty()) {continue;}
-        if (set_diff(set_min_flood, set_max_reuse).empty()) {continue;}
+            // Speed-Up the second and sixth most common cases 34 and 04
+            if (compare_buffer[3] == compare_buffer[4]) {continue;}
+            if (compare_buffer[0] == compare_buffer[4]) {continue;}
 
-        if (set_diff(set_max_flood, set_no_reuse).empty()) {continue;}
-        if (set_diff(set_max_flood, set_min_reuse).empty()) {continue;}
-        if (set_diff(set_max_flood, set_max_reuse).empty()) {continue;}
+            // Max-Flood Reuse
+            name_map[5] = "MAX-FLOOD REUSE";
+            used_installation_spots.clear();
+            instance->reuse(k, m, -1, emptyset, &used_installation_spots);
+            compare_buffer[5] = (int) used_installation_spots.size();
+            for (i=0; i<num_sensors; i++) {algo_results[5][i] = (isin(used_installation_spots, i)) ? 1:0;}
 
-        if (set_diff(set_no_reuse, set_min_reuse).empty()) {continue;}
-        if (set_diff(set_no_reuse, set_max_reuse).empty()) {continue;}
+            // Speed-Up the fiftheventh and eigth most common cases 45, 35 and 05
+            if (compare_buffer[4] == compare_buffer[5]) {continue;}
+            if (compare_buffer[3] == compare_buffer[5]) {continue;}
+            if (compare_buffer[0] == compare_buffer[5]) {continue;}
 
-        if (set_diff(set_min_reuse, set_max_reuse).empty()) {continue;}
+            // Best-Reuse
+            name_map[6] = "BEST REUSE";
+            used_installation_spots.clear();
+            instance->reuse(k, m, emptyset, &used_installation_spots);
+            compare_buffer[6] = -1;  // (int) used_installation_spots.size();  Always ignored in comparisons
+            for (i=0; i<num_sensors; i++) {algo_results[6][i] = (isin(used_installation_spots, i)) ? 1:0;}
 
-        // If we got here, we have a photogenic instance
-        std::cout << "GOT IT! " << random_seed << std::endl;
-        return (0);
+        } catch (const std::exception &exc) {
+            std::cout << "Attempt " << attempt << " (v" << attempt - invalid_count << ") Seed " << random_seed
+                      << std::endl;
+            throw std::runtime_error("INVALID INSTANCE!");
+        }
+
+        // Test the photogenicity
+        must_break = false;
+        for (i = 0; i < 7; i++) {
+            if (must_break) { break; }
+            for (j = i + 1; j < 7; j++) {
+                if (compare_buffer[i] == compare_buffer[j]) {
+                    std::cout << "Seed " << random_seed << " Case " << i << j << std::endl;
+                    must_break = true;
+                    break;
+                }
+            }
+        }
+
+        if (not must_break) {
+            // If we got here, we have a photogenic instance
+            std::cout << "GOT IT! " << instance->serialize() << std::endl;
+
+            // Print the instance placements in DOT-compatible language
+            Placement pl_pois[num_pois], pl_sensors[num_sensors], pl_sinks[num_sinks];
+            instance->get_placements(pl_pois, pl_sensors, pl_sinks);
+
+            std::cout << "SINK [pos=\"" << pl_sinks[0].x << "," << pl_sinks[0].y << "!\"]" << std::endl;
+            for (j=0; j<num_pois; j++) {std::cout << "POI_" << j << " [pos=\"" << pl_pois[j].x << "," << pl_pois[j].y << "!\"]" << std::endl;}
+            for (j=0; j<num_sensors; j++) {std::cout << "i" << j << " [pos=\"" << pl_sensors[j].x << "," << pl_sensors[j].y << "!\"]" << std::endl;}
+            std::cout << std::endl;
+
+            // Print the connections
+            for (j=0; j<num_pois; j++) {
+                for (i=0; i<num_sensors; i++) {
+                    if (isin(instance->poi_sensor[j], i)) {std::cout << "POI_" << j << " -> i" << i << ';' << std::endl;}
+                }
+            }
+            std::cout << std::endl;
+            for (i=0; i<num_sensors; i++) {
+                if (isin(instance->sink_sensor[0], i)) {std::cout << "SINK -> i" << i << ';' << std::endl;}
+            }
+            std::cout << std::endl;
+            for (j=0; j<num_sensors; j++) {
+                for (i=j; i<num_sensors; i++) {
+                    if (isin(instance->sensor_sensor[j], i)) {std::cout << "i" << j << " -> i" << i << ';' << std::endl;}
+                }
+            }
+            std::cout << std::endl;
+
+            // Print the algorithm results
+            for (j=0; j<7; j++) {
+                std::cout << "ALGO " << name_map[j];
+                for (i=0; i<num_sensors; i++) {
+                    if (algo_results[j][i] == 1) {
+                        std::cout << "; i" << i;
+                    }
+                }
+                std::cout << ";" << std::endl;
+            }
+
+            // Print the level-graph
+            // instance->level_graph(level_graph, emptyset);
+            // for (i=0; i<num_sensors; i++) {std::cout << "SENSOR " << i << " LEVEL " << level_graph[i] << std::endl;}
+
+            return (0);
+        }
     }
 
     std::cout << "FAILURE AT " << MAX_TRIES << " TRIES!" << std::endl;

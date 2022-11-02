@@ -193,10 +193,15 @@ class KCMC_Instance {
         int reuse(int k, int m, int flood_level, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors);
         int reuse(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors);
 
+        /* Other useful information about the instance
+         */
+        int level_graph(int level_graph[], std::unordered_set<int> &inactive_sensors);
+        void get_placements(Placement *pl_pois, Placement *pl_sensors, Placement *pl_sinks);
+
     private:
+        void get_placements(Placement *pl_pois, Placement *pl_sensors, Placement *pl_sinks, bool push);
         void regenerate();
         int parse_edge(int stage, const std::string& token);
-        int level_graph(int level_graph[], std::unordered_set<int> &inactive_sensors);
         int find_path(int poi_number, std::unordered_set<int> &used_sensors,
                       int level_graph[], int predecessors[]);
 };

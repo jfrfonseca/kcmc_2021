@@ -225,7 +225,7 @@ int KCMC_Instance::reuse(int k, int m, int flood_level,
     for (const auto &i : *visited_sensors) {inv_frequency_array[i.first] = num_paths - i.second;}
 
     // Prepare the set of "used" sensors and clear the map of visited sensors
-    std::unordered_set<int> used_sensors;
+    std::unordered_set<int> used_sensors, set_visited_sensors, final_inactive_sensors;
     visited_sensors->clear();
 
     // Run for each POI, returning at the first failure
@@ -240,8 +240,8 @@ int KCMC_Instance::reuse(int k, int m, int flood_level,
             // Find a path
             path_end = this->find_path(a_poi, used_sensors, inv_frequency_array, predecessors);
 
-            // If the path ends in an invalid sensor
-            if (path_end == -1) {throw std::runtime_error("COULD NOT FIND ENOUGH PATHS FOR POI!");}
+            // If the path ends in an invalid sensor, break the loop. Other POIs will fix it
+            if (path_end == -1) {break;}
             else {
                 paths_found += 1;  // Count the newfound path
                 // Unravel the path, marking each sensor in it as used
@@ -289,6 +289,14 @@ int KCMC_Instance::reuse(int k, int m, int flood_level,
             queue.pop();  // Remove the sensor from the queue
         }
     }
+
+//    // Re-Validate IN DEBUG MODE
+//    setify(set_visited_sensors, visited_sensors);
+//    this->invert_set(final_inactive_sensors, &set_visited_sensors);  // Sensors not visited
+//    final_inactive_sensors = set_diff(final_inactive_sensors, inactive_sensors);  // Remove the pre-inactivated
+//    bool valid = this->validate(true, k, m, final_inactive_sensors);  // Final check-up, safe-mode only
+//    if (not valid) {throw std::runtime_error("REUSE VALIDATION ERROR!");}
+//    // END re-validate IN DEBUG MODE
 
     // Return the number of otherwise inactive sensors that were added only to guarantee k-coverage
     return ((int)(visited_sensors->size()))-pre_k_cov_sensors;

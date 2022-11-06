@@ -90,7 +90,8 @@ int main(int argc, char* const argv[]) {
                 if (success == -1) {
                     success = instance->fast_m_connectivity(m, emptyset, &ignoredset);
                     if (success == -1) {
-                        printf("%s | (K%dM%d)\n", instance->serialize().c_str(), k, m);
+                        //printf("%s | (K%dM%d)\n", instance->serialize().c_str(), k, m);
+                        printf("KCMC;%s;END | (K%dM%d)\n", instance->key().c_str(), k, m);
                         previous_seed = random_seed + std::abs((rand() % 100000)) + 7;
                         break;
                     }

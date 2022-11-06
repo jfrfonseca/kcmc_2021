@@ -5,6 +5,7 @@ KCMC_Instance Object
 
 import json
 import subprocess
+import sys
 from typing import List, Set, Tuple, Dict
 try:
     import igraph
@@ -29,7 +30,7 @@ def get_placements(pois, sensors, sinks, area_side, random_seed, executable='/ap
 
 # Get the regenerated instance from its key using the C++ interface
 def get_serialized_instance(pois, sensors, sinks, area_side, sensor_coverage_radius, sensor_communication_radius, random_seed,
-                   executable='/app/instance_evaluator'):
+                            executable='/app/instance_evaluator'):
     out = subprocess.Popen(
         list(map(str, [
             executable, 0, 0,
@@ -566,3 +567,36 @@ def parse_block(df):
     ).reset_index(drop=True)
 
     return df
+
+if __name__ == '__main__':
+    from tqdm import tqdm
+    from collections import Counter
+    print('Testing Isomorphism')
+
+    # Parse the instances
+    sourcefile = sys.argv[1]
+    instances = []
+    with open(sourcefile, 'r') as fin:
+        for line in tqdm(fin):
+            instances.append(KCMC_Instance(line.strip().split('|')[0].strip(), True, True, True))
+    print(f'GOT {len(instances)} INSTANCES')
+
+    # Compare instances
+    for i, inst_i in enumerate(tqdm(instances)):
+        for j, inst_j in enumerate(instances[i+1:]):
+            j = i+1+j
+            ranks_i = set(Counter([b for a, b in inst_i.poi_degree.items()]).items())
+            ranks_j = set(Counter([b for a, b in inst_j.poi_degree.items()]).items())
+            diff_ij = ranks_i - ranks_j
+            if len(diff_ij) != 0: continue
+            diff_ji = ranks_j - ranks_i
+            if len(diff_ji) != 0: continue
+
+            ranks_i = set(Counter([b for a, b in inst_i.sensor_degree.items()]).items())
+            ranks_j = set(Counter([b for a, b in inst_j.sensor_degree.items()]).items())
+            diff_ij = ranks_i - ranks_j
+            if len(diff_ij) != 0: continue
+            diff_ji = ranks_j - ranks_i
+            if len(diff_ji) != 0: continue
+
+            raise Exception(f'Possible isomorphism {i},{j}')

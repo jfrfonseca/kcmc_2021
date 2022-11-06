@@ -50,7 +50,7 @@ std::unordered_set<int> set_diff(const std::unordered_set<int> &left, const std:
 double distance(Placement source, Placement target){
     /** Euclidean distance */
     return sqrt(pow((source.x - target.x), 2.0)
-                 + pow((source.y - target.y), 2.0));  // Using target.x instead of target.y due to an old typo.
+                 + pow((source.y - target.y), 2.0));
 }
 
 

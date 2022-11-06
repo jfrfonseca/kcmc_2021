@@ -7,6 +7,7 @@
 // STDLib Dependencies
 #include <unistd.h>  // getpid
 #include <iostream>  // cin, cout, endl, printf, fprintf
+#include <iomanip>   // std::setprecision
 
 // Dependencies from this package
 #include "kcmc_instance.h"
@@ -71,6 +72,9 @@ int main(int argc, char* const argv[]) {
 
     /* ================== *
      * GENERATE INSTANCES *
+     *
+     * - 3 20 1;300 50 100;616917773
+     *
      * - 3 20 1;300 50 100;7150115257
      * - 3 25 1;300 50 100;986917529
      *
@@ -192,6 +196,7 @@ int main(int argc, char* const argv[]) {
             // If we got here, we have a photogenic instance
             std::cout << "GOT IT! " << instance->serialize() << std::endl;
 
+            /** DOT
             // Print the instance placements in DOT-compatible language
             Placement pl_pois[num_pois], pl_sensors[num_sensors], pl_sinks[num_sinks];
             instance->get_placements(pl_pois, pl_sensors, pl_sinks);
@@ -218,6 +223,53 @@ int main(int argc, char* const argv[]) {
                 }
             }
             std::cout << std::endl;
+            */
+
+            /** LATEX TIKZ
+             *
+             */
+            Placement pl_pois[num_pois], pl_sensors[num_sensors], pl_sinks[num_sinks];
+            instance->get_placements(pl_pois, pl_sensors, pl_sinks);
+
+            double scale = 10.7/area_side;
+
+            std::cout << "\\begin{tikzpicture} " << std::endl;
+            std::cout << std::setprecision(2) << "\\draw (" << pl_sinks[0].x * scale << "," << pl_sinks[0].y * scale << ") node (s0) {$\\sink$};" << std::endl;
+            std::cout << std::setprecision(2) << "\\draw (" << pl_sinks[0].x * scale << "," << pl_sinks[0].y * scale << ") node[below] {$s_0$};" << std::endl;
+            for (j=0; j<num_pois; j++) {
+                std::cout << std::setprecision(2) << "\\draw (" << pl_pois[j].x * scale << "," << pl_pois[j].y * scale << ") node (p" << j << ") {$\\poi$};" << std::endl;
+                std::cout << std::setprecision(2) << "\\draw (" << pl_pois[j].x * scale << "," << pl_pois[j].y * scale << ") node[below] {$p_{" << j << "}$};" << std::endl;
+            }
+            for (j=0; j<num_sensors; j++) {
+                std::cout << std::setprecision(2) << "\\draw (" << pl_sensors[j].x * scale << "," << pl_sensors[j].y * scale << ") node (i" << j << ") {$\\sensor$};" << std::endl;
+                std::cout << std::setprecision(2) << "\\draw (" << pl_sensors[j].x * scale << "," << pl_sensors[j].y * scale << ") node[below] {$i_{" << j << "}$};" << std::endl;
+            }
+            std::cout << std::endl;
+
+            // Print the connections
+            for (j=0; j<num_pois; j++) {
+                for (i=0; i<num_sensors; i++) {
+                    if (isin(instance->poi_sensor[j], i)) {
+                        std::cout << "\\draw[dotted] (p" << j << ") -- (i" << i << ");" << std::endl;
+                    }
+                }
+            }
+            std::cout << std::endl;
+            for (i=0; i<num_sensors; i++) {
+                if (isin(instance->sink_sensor[0], i)) {
+                    std::cout << "\\draw (s0) -- (i" << i << ");" << std::endl;
+                }
+            }
+            std::cout << std::endl;
+            for (j=0; j<num_sensors; j++) {
+                for (i=j; i<num_sensors; i++) {
+                    if (isin(instance->sensor_sensor[j], i)) {
+                        std::cout << "\\draw (i" << j << ") -- (i" << i << ");" << std::endl;
+                    }
+                }
+            }
+            std::cout << "\\end{tikzpicture} " << std::endl;
+
 
             // Print the algorithm results
             for (j=0; j<7; j++) {

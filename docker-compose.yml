@@ -2,30 +2,17 @@ version: "3.9"
 
 services:
 
-  compiler:
-    # Dockerized compiler environment
-    profiles:
-      - compiler
-    build:
-      dockerfile: compiler.dockerfile
-      context: .
-    command: bash /app/src/compiler_entrypoint.sh
-    volumes:
-      - ./CMakeLists.txt:/app/CMakeLists.txt:ro
-      - ./src:/app/src:ro
-      - ./builds:/app/builds:rw
-
-  generator:
+  instances_generator:
     # Instances generator
     profiles:
-      - generator
-    command: '/src/run_instance_generator.sh'
+      - instances_generator
+    command: '/app/heuristics/run_instances_generator.sh'
     build:
-      dockerfile: instance_generator.dockerfile
+      dockerfile: DOCKERFILE
       context: .
     volumes:
       - ./data:/data:rw
-      - ./src:/src:ro
+      - ./integer_linear_programs:/app/integer_linear_programs:ro
 
   optimizer:
     profiles:

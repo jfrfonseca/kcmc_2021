@@ -11,7 +11,7 @@ import base64
 import gurobipy as gp
 from gurobipy import GRB
 
-from kcmc_instance import KCMC_Instance
+from integer_linear_programs.kcmc_instance import KCMC_Instance
 
 
 # TRANSLATE GUROBI STATUS CODES

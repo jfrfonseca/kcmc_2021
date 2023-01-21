@@ -4,7 +4,7 @@ GUROBI Single-Flow and Multi-Flow ILP Model Objects Factory
 
 import re
 import json
-from typing import Any, Union, Dict
+from typing import Any, Union
 from dataclasses import dataclass
 
 import gurobipy as gp
@@ -12,7 +12,7 @@ from gurobipy import GRB
 
 import ijson
 
-from kcmc_instance import KCMC_Instance
+from integer_linear_programs.kcmc_instance import KCMC_Instance
 from gurobi_model_wrapper import GurobiModelWrapper
 
 

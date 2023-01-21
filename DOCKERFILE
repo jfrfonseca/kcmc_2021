@@ -1,0 +1,25 @@
+# USING GUROBI IMAGE
+FROM gurobi/python:9.1.2
+
+# INSTALL DEPS & CLEANUP
+RUN apt -y update \
+ && apt install -y g++ make cmake parallel --no-install-recommends \
+ && apt -y autoremove && rm -rf /var/lib/apt/lists/*
+
+# Install python dependencies
+RUN pip install --no-cache-dir boto3 ijson numpy pandas pyarrow
+
+# Acquire & compile the heuristics
+COPY heuristics /app/heuristics
+COPY CMakeLists.txt /app
+RUN mkdir /tmp/builds \
+ && cd /tmp/builds \
+ && cmake -S /app -B . \
+ && cmake --build . \
+ && chmod +x /tmp/builds/* \
+ && mv instances_generator /app && mv instance_regenerator /app && mv photogenic_instance_generator /app \
+ && mv optimizer /app \
+ && rm -rf /tmp/builds
+
+ # USER CODE MUST BE PLACED IN /app
+WORKDIR /app

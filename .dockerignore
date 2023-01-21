@@ -1,5 +1,2 @@
 analysis/*
-data/*
-dataviz/*
-deprecated/*
-cmake*
+cmake-build-debug/*

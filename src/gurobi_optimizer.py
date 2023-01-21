@@ -12,7 +12,7 @@ import argparse
 import boto3
 
 # Payload packages
-from kcmc_instance import KCMC_Instance
+from integer_linear_programs.kcmc_instance import KCMC_Instance
 from gurobi_models import gurobi_multi_flow, gurobi_single_flow
 
 

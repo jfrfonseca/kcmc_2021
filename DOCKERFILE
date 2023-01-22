@@ -17,7 +17,8 @@ RUN mkdir /tmp/builds \
  && cmake -S /app -B . \
  && cmake --build . \
  && chmod +x /tmp/builds/* \
- && mv instances_generator /app && mv instance_regenerator /app && mv photogenic_instance_generator /app \
+ && mv instances_generator /app \
+ && mv instance_regenerator /app \
  && mv optimizer /app \
  && rm -rf /tmp/builds
 

@@ -177,7 +177,7 @@ int main(int argc, char* const argv[]) {
         random_seed = atoll(argv[i]);
 
         if (random_seed == 0) {
-            srand(time(NULL) + getpid());  // Diferent seed in each run for each process
+            srand(time(NULL) + getpid()*20);  // Diferent seed in each run for each process
             do {
                 random_seed = 100000000 + std::abs((rand() % 100000000)) + std::abs((rand() % 100000000));  // LARGE but random-er number
             } while (isin(previous_seeds, random_seed));
@@ -222,6 +222,8 @@ int main(int argc, char* const argv[]) {
                 if (not std::equal(serial.begin(), serial.end(), second_serial.begin(), second_serial.end())) {
                     throw std::runtime_error("SHORT SERIALIZATION/DESERIALIZATION FAILED");
                 }
+
+                // Print as TIKZ
                 print_tikz(instance, 10);
             }
 

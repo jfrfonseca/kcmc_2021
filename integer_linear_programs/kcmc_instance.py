@@ -66,7 +66,9 @@ def get_preprocessing(pois, sensors, sinks, area_side, sensor_coverage_radius, s
 
 class KCMC_Instance(object):
 
-    def __repr__(self): return f'<{self.key_str} {self.random_seed}>'
+    def __repr__(self): return f'<{self.key_str}>'
+    def __str__(self): return self.__repr__()
+    def __hash__(self): return self.__repr__().__hash__()
 
     def parse_serialized_instance(self, instance_string:str, inactive_sensors=None):
 
@@ -275,14 +277,27 @@ if __name__ == '__main__':
 
     # Parse the instances
     instances = []
+    isomorphic_pairs = []
+    instance_cohorts = {}
     for line in sys.stdin:
-        print(f'Comparing instance {1+len(instances)} with {len(instances)} others')
+        print(f'Comparing instance {1+len(instances)} with {len(instances)} others (got {len(isomorphic_pairs)} possible isomorphic pairs)')
 
         # Parse the instance
-        instance = KCMC_Instance(line.strip().split('|')[0].strip(), True, True, True)
+        instance, kcmc = line.strip().split('|')
+        instance = KCMC_Instance(instance.strip(), True, True, True)
+
+        # Get the instance's cohort
+        cohort = str(instance).replace(f'{instance.random_seed};', '')+kcmc
+        if cohort not in instance_cohorts: instance_cohorts[cohort] = []
+        instance_cohorts[cohort].append(instance)
 
         # Compare all previous instances with the current
         for other_instance in instances:
+
+            # There definitely is isomorphism if the seeds are equal
+            if instance.random_seed == other_instance.random_seed:
+                isomorphic_pairs.append((instance, other_instance))
+                continue
 
             # No possible isomorphism if different numbers of elements
             if other_instance.num_sinks != instance.num_sinks: continue
@@ -314,10 +329,24 @@ if __name__ == '__main__':
             if len(diff_io) != 0: continue
 
             # There might be isomorphism of both instances
-            raise Exception(f'Possible isomorphism:\n\t{other_instance}\n\t{instance}')
+            isomorphic_pairs.append((instance, other_instance))
 
         # If we got here, no possible isomorfism! Yaaay!
         # Add the current instance in the list for checking against isomorphism with further instances
         instances.append(instance)
+
+    print('COHORTS:')
+    for cohort, cohort_instances in sorted(instance_cohorts.items()):
+        isomorphic_pairs_in_cohort = [
+            i for i, oi in isomorphic_pairs
+            if ((i in cohort_instances) or (oi in cohort_instances))
+        ]
+        print(f'\t{len(cohort_instances)}-{len(isomorphic_pairs_in_cohort)}:\t{cohort}')
+
+    if len(isomorphic_pairs) > 0:
+        print(f'GOT {len(isomorphic_pairs)} ISOMORPHIC PAIRS!')
+        for instance, other_instance in isomorphic_pairs:
+            print(f'\tINSTANCE {instance} AND {other_instance}')
+        exit(1)
 
     print(f'NO POSSIBLE ISOMORPHISM IN {len(instances)} INSTANCES!')

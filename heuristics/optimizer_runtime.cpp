@@ -17,7 +17,9 @@
 
 void printout(KCMC_Instance *instance, int k, int m,
               const std::string optimization_method,
-              const long duration, std::unordered_set<int> &solution) {
+              const int cost,
+              const long duration,
+              std::unordered_set<int> &solution) {
 
     // Prepare the output buffer
     std::ostringstream out;
@@ -37,9 +39,10 @@ void printout(KCMC_Instance *instance, int k, int m,
         << k << "\t"
         << m << "\t"
         << optimization_method << "\t"
+        << cost << "\t"
         << duration << "\t"
         << solution.size() << "\t"
-        << std::setprecision(6) << solution.size() / instance->num_sensors << "\t";
+        << int(1000.0 * (double)(solution.size()) / (double)(instance->num_sensors)) << "\t";
 
     // Printout the obtained solution as a JSON list of used installation spots / active sensors
     out << "["
@@ -78,15 +81,40 @@ int main(int argc, char* const argv[]) {
 
     // Parse the input
     auto *instance = new KCMC_Instance(argv[1]);
-    int k, m;
+    int k, m, cost;
     k = atoi(argv[2]);
     m = atoi(argv[3]);
 
     // Process the KCOV-DINIC optimization
+    solution.clear();
     start = std::chrono::high_resolution_clock::now();
-    instance->kcov_dinic(k, m, solution);
+    cost = instance->kcov_dinic(k, m, solution);
     end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    printout(instance, k, m, "KCOV-DINIC", duration, solution);
+    printout(instance, k, m, "KCOV-DINIC", cost, duration, solution);
+
+    // Process the REUSE-DINIC optimization
+    solution.clear();
+    start = std::chrono::high_resolution_clock::now();
+    cost = instance->reuse_dinic(k, m, solution);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    printout(instance, k, m, "REUSE-DINIC", cost, duration, solution);
+
+    // Process the FLOOD-DINIC optimization
+    solution.clear();
+    start = std::chrono::high_resolution_clock::now();
+    cost = instance->flood_dinic(k, m, solution);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    printout(instance, k, m, "FLOOD-DINIC", cost, duration, solution);
+
+    // Process the BEST-DINIC optimization
+    solution.clear();
+    start = std::chrono::high_resolution_clock::now();
+    cost = instance->best_dinic(k, m, solution);
+    end = std::chrono::high_resolution_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    printout(instance, k, m, "BEST-DINIC", cost, duration, solution);
 
 }

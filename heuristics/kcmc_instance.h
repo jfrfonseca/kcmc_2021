@@ -176,10 +176,13 @@ class KCMC_Instance {
         int dinic(int m, bool flood, std::unordered_set<int> &visited_sensors, int tally[], bool quiet);
 
         /** OPTIMIZATION
-         *
+         * KCOV-DINIC
+         * REUSE-DINIC
          */
          int kcov_dinic(int k, int m, std::unordered_set<int> &solution);
-
+         int reuse_dinic(int k, int m, std::unordered_set<int> &solution);
+         int flood_dinic(int k, int m, std::unordered_set<int> &solution);
+         int best_dinic(int k, int m, std::unordered_set<int> &solution);
 
     private:
 
@@ -205,65 +208,12 @@ class KCMC_Instance {
         /* Internal support methods for the optimization methods
          * invert_sensor_set gets a set of sensors and prepares a set of all sensors not in it
          * add_k_cov adds sensors to a set until the set has K-Coverage
+         * strongest_flow_first_search (or "San Francisco First" search) is like DINIC, but prioritizes sensors that are part of many paths
          */
         void invert_sensor_set(std::unordered_set<int> &source_set, std::unordered_set<int> &target_set);
         int add_k_cov(int k, std::unordered_set<int> &included_sensors);
+        int strongest_flow_first_search(int m, bool flood, std::unordered_set<int> &all_visited);
 
-
-//        /* Instance basic services
-//         * Get the KEY of the current instance
-//         * Serialize the current instance as a string
-//         * Invert a set of sensors (get every sensor in the instance not in the set)
-//         * Validate the instance, raising errors if invalid. Some arguments are optional
-//         */
-//        int invert_set(std::unordered_set<int> &source_set, std::unordered_set<int> *target_set);
-//        bool validate(bool raise, int k, int m);
-//        bool validate(bool raise, int k, int m, std::unordered_set<int> &inactive_sensors);
-//        bool validate(bool raise, int k, int m, std::unordered_set<int> &inactive_sensors,
-//                      std::unordered_set<int> *k_used_sensors,
-//                      std::unordered_set<int> *m_used_sensors);
-//
-//        /* Instance problem-specific methods
-//         * Get the Degree of each Sensor in the instance
-//         * Get the Coverage of each POI in the instance
-//         * Get the Connectivity of each POI in the instance
-//         */
-//        int get_degree(int buffer[], std::unordered_set<int> &inactive_sensors);
-//        int get_coverage(int buffer[], std::unordered_set<int> &inactive_sensors);
-//        int get_connectivity(int buffer[], std::unordered_set<int> &inactive_sensors, int target);
-//        int get_connectivity(int buffer[], std::unordered_set<int> &inactive_sensors);
-//
-//        /* Instance payload services
-//         * Validates k-coverage in the instance considering the given set of inactive sensors
-//         * Validates m-connectivity in the instance considering the given set of inactive sensors
-//         */
-//        int fast_k_coverage(int k, std::unordered_set<int> &inactive_sensors);
-//        int fast_k_coverage(int k, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *all_used_sensors);
-//        std::string k_coverage(int k, std::unordered_set<int> &inactive_sensors);
-//        int fast_m_connectivity(int m, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *all_used_sensors);
-//        int fast_m_connectivity(int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *all_used_sensors);
-//        std::string m_connectivity(int m, std::unordered_set<int> &inactive_sensors);
-//
-//        /* Instance Preprocessors
-//         * Local Optima yelds ony the sensors required to validate the instance using Dinic's algorithm (limited)
-//         * Flood finds all parallel paths from the dinic paths required in the instance.
-//         *   The Minimal flood does it only for the required dinic paths. Full flood keeps on adding paths to the
-//         *     minimal requirements until paths start to increase, so it has way more sensors.
-//         * Reuse uses the full-flood to get paths. Each path votes on all its composing sensors. Then, new paths are
-//         *   created preferring the most voted sensors in each dinic level.
-//         */
-//        int local_optima(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_set<int> *all_used_sensors);
-//        int flood(int k, int m, bool full, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors);
-//        int reuse(int k, int m, int flood_level, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors);
-//        int reuse(int k, int m, std::unordered_set<int> &inactive_sensors, std::unordered_map<int, int> *visited_sensors);
-//
-//        /* Other useful information about the instance
-//         */
-//        int level_graph(int level_graph[], std::unordered_set<int> &inactive_sensors);
-//
-//    private:
-//        int find_path(int poi_number, std::unordered_set<int> &used_sensors,
-//                      int level_graph[], int predecessors[]);
 };
 
 #endif

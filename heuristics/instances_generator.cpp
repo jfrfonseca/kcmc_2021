@@ -195,7 +195,7 @@ int main(int argc, char* const argv[]) {
                                                area_side, coverage_radius, communication_radius,
                                                malted_seed);
 
-            printf("KCMC;%s;END | (K%dM%d)\n", instance->key().c_str(), k, m);
+            printf("KCMC;%s;END\t%d\t%d\n", instance->key().c_str(), k, m);
 
             // Print as TIKZ if there was only one instance
             // Also test serialization and regeneration

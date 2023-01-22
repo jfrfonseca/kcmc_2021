@@ -90,6 +90,7 @@ T set_merge (T a, T b) {T t(a); t.insert(b.begin(),b.end()); return t;}
 std::unordered_set<int> set_diff(const std::unordered_set<int> &left, const std::unordered_set<int> &right);
 
 
+
 /* SETIFY
  * Returns a set from other data structure
  */
@@ -174,6 +175,12 @@ class KCMC_Instance {
         int dinic(int m, bool flood, std::unordered_set<int> &visited_sensors, int tally[]);
         int dinic(int m, bool flood, std::unordered_set<int> &visited_sensors, int tally[], bool quiet);
 
+        /** OPTIMIZATION
+         *
+         */
+         int kcov_dinic(int k, int m, std::unordered_set<int> &solution);
+
+
     private:
 
         /* Internal support methods for the get_placements method
@@ -194,6 +201,13 @@ class KCMC_Instance {
          */
         int level_vector(int level_vector[]);
         int get_path(int origin, int lv[], std::unordered_set<int> &visited, std::unordered_set<int> &phi);
+
+        /* Internal support methods for the optimization methods
+         * invert_sensor_set gets a set of sensors and prepares a set of all sensors not in it
+         * add_k_cov adds sensors to a set until the set has K-Coverage
+         */
+        void invert_sensor_set(std::unordered_set<int> &source_set, std::unordered_set<int> &target_set);
+        int add_k_cov(int k, std::unordered_set<int> &included_sensors);
 
 
 //        /* Instance basic services

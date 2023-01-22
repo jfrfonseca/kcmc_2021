@@ -2,11 +2,14 @@ version: "3.9"
 
 services:
 
-  instances_generator:
-    # Instances generator
+  heuristic_optimizer:
+    # Instances generator and heuristic optimizer
     profiles:
       - instances_generator
-    command: '/app/heuristics/run_instances_generator.sh'
+      - heuristic
+      - heuristic_optimizer
+      - heuristics
+    command: '/app/heuristics/run_heuristics.sh'
     build:
       dockerfile: DOCKERFILE
       context: .
@@ -14,10 +17,13 @@ services:
       - ./data:/data:rw
       - ./integer_linear_programs:/app/integer_linear_programs:ro
 
-  optimizer:
+  exact_optimizer:
     profiles:
       - gurobi
       - optimizer
+      - exact
+      - exact_optimizer
+      - gurobi_optimizer
     build:
       dockerfile: gurobi.dockerfile
       context: .

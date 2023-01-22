@@ -276,6 +276,7 @@ if __name__ == '__main__':
         return set(Counter([degree for vertice, degree in vertice_degrees_dict.items()]).items())
 
     # Parse the instances
+    seeds = set()
     instances = []
     isomorphic_pairs = []
     instance_cohorts = {}
@@ -283,11 +284,12 @@ if __name__ == '__main__':
         print(f'Comparing instance {1+len(instances)} with {len(instances)} others (got {len(isomorphic_pairs)} possible isomorphic pairs)')
 
         # Parse the instance
-        instance, kcmc = line.strip().split('|')
+        instance, k, m = line.strip().split('\t')
         instance = KCMC_Instance(instance.strip(), True, True, True)
+        seeds.add(instance.random_seed)
 
         # Get the instance's cohort
-        cohort = str(instance).replace(f'{instance.random_seed};', '')+kcmc
+        cohort = str(instance).replace(f'{instance.random_seed};', '')+f' K={k} M={m}'
         if cohort not in instance_cohorts: instance_cohorts[cohort] = []
         instance_cohorts[cohort].append(instance)
 
@@ -349,4 +351,4 @@ if __name__ == '__main__':
             print(f'\tINSTANCE {instance} AND {other_instance}')
         exit(1)
 
-    print(f'NO POSSIBLE ISOMORPHISM IN {len(instances)} INSTANCES!')
+    print(f'NO POSSIBLE ISOMORPHISM IN {len(instances)} INSTANCES AND {len(seeds)} SEEDS!')

@@ -8,7 +8,7 @@ ADD_LIBRARY(KCMC_Module
             heuristics/kcmc_instance.cpp
             heuristics/k_coverage.cpp
             heuristics/m_connectivity.cpp
-            #heuristics/optimizer.cpp
+            heuristics/optimizer.cpp
             heuristics/kcmc_instance.h
 )
 target_link_libraries(KCMC_Module)
@@ -21,5 +21,5 @@ ADD_EXECUTABLE(instance_regenerator heuristics/instance_regenerator.cpp)
 target_link_libraries(instance_regenerator KCMC_Module)
 
 # Optimizer -------------------------------------------------------------------
-#ADD_EXECUTABLE(optimizer heuristics/optimizer_runtime.cpp)
-#target_link_libraries(optimizer KCMC_Module)
+ADD_EXECUTABLE(optimizer heuristics/optimizer_runtime.cpp)
+target_link_libraries(optimizer KCMC_Module)

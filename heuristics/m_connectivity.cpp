@@ -139,13 +139,12 @@ int KCMC_Instance::level_vector(int lv[]) {
  * Can be easily modified to return a sequence instead of a set
  * The no-predecessor value must be INFTY or larger
  */
-int unravel_predecessors(int head, const int predecessors[], std::unordered_set<int> &members) {
+void unravel_predecessors(int head, const int predecessors[], std::unordered_set<int> &members) {
     members.clear();
     do {
         members.insert(head);
         head = predecessors[head];
     } while (head < INFTY);
-    return members.size();
 }
 
 

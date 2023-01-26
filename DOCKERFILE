@@ -3,7 +3,7 @@ FROM gurobi/python:9.1.2
 
 # INSTALL DEPS & CLEANUP
 RUN apt -y update \
- && apt install -y g++ make cmake parallel --no-install-recommends \
+ && apt install -y g++ make cmake parallel awscli --no-install-recommends \
  && apt -y autoremove && rm -rf /var/lib/apt/lists/*
 
 # Install python dependencies
@@ -22,5 +22,14 @@ RUN mkdir /tmp/builds \
  && mv optimizer /app \
  && rm -rf /tmp/builds
 
+# Acquire the data and python code
+COPY data/ /data/
+COPY integer_linear_programs/ /app/integer_linear_programs/
+
  # USER CODE MUST BE PLACED IN /app
 WORKDIR /app
+
+# Create and set the service user
+RUN groupadd --gid 1001 kcmc
+RUN useradd -M -b /app -d /app -c "KCMC User" --uid 1000 --gid 1001 kcmc
+USER kcmc

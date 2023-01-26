@@ -13,6 +13,9 @@ services:
     build:
       dockerfile: DOCKERFILE
       context: .
+    image: ${DOCKER_REPOSITORY}:latest
+    environment:
+      RESULTS_TARGET: 's3://kcmc-heuristic/2023/heuristic'
     volumes:
       - ./data:/data:rw
       - ./integer_linear_programs:/app/integer_linear_programs:ro

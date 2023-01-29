@@ -49,4 +49,3 @@ services:
       - ./data:/data:ro
       - ./src:/src:ro
       - ./builds:/app:ro
-      - ./analysis:/home/gurobi/0_analysis:rw

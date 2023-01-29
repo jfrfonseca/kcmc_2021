@@ -46,6 +46,78 @@ services:
       PYTHONPATH: "/src"
     volumes:
       - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
+<<<<<<< HEAD
       - ./data:/data:ro
       - ./src:/src:ro
       - ./builds:/app:ro
+=======
+      - ./data:/data:rw
+      - /media/zeff/Peixe/DATA:/data/dynamodb_objs:ro
+      - ./builds:/app:ro
+      - ./analysis:/home/gurobi/0_analysis:rw
+      - ./src:/home/gurobi/0_analysis/src:ro
+
+  dataviz:
+    profiles:
+      - dataviz
+      - notebook
+    image: nginx:alpine
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./dataviz/index.html:/usr/share/nginx/html/index.html:ro
+      - ./dataviz/css:/usr/share/nginx/html/css:ro
+      - ./dataviz/fonts:/usr/share/nginx/html/fonts:ro
+      - ./dataviz/js:/usr/share/nginx/html/js:ro
+      - ./dataviz/stylesheets:/usr/share/nginx/html/stylesheets:ro
+      - ./data/visualizations:/usr/share/nginx/html/datasets:ro
+
+# The services below were used for the instance probability study
+#
+#  redis:
+#    profiles:
+#      - redis
+#      - generator
+#      - parser
+#    image: "redis:alpine"
+#    command: redis-server /data/redis.conf
+#    ports:
+#      - "6379:6379"
+#    volumes:
+#      - ./data:/data:rw
+#
+#  generator-random:
+#    profiles:
+#      - generator-random
+#    depends_on:
+#      - redis
+#    extra_hosts:
+#      - "host.docker.internal:host-gateway"
+#    command: "python -u /src/instance_generator_driver.py /data/instance_generator_configurations.csv 200 --clear-locks"
+#    build:
+#      dockerfile: instance_generator.dockerfile
+#      context: .
+#    volumes:
+#      - ./data:/data:ro
+#      - ./src:/src:ro
+#    deploy:
+#      mode: replicated
+#      replicas: 15
+#
+#  parser:
+#    profiles:
+#      - parser
+#    depends_on:
+#      - redis
+#    extra_hosts:
+#      - "host.docker.internal:host-gateway"
+#    command: "python -u /src/kcmc_instance.py /data/instances.csv 15 host.docker.internal --no-parsing"
+#    build:
+#      dockerfile: instance_generator.dockerfile
+#      context: .
+#    volumes:
+#      - ./data:/data:rw
+#      - ./src:/src:ro
+#
+>>>>>>> f9862c6 (minor debugs)

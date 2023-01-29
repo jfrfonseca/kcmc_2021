@@ -18,5 +18,5 @@ source .env
 aws ecr get-login-password | docker login --username AWS --password-stdin "${DOCKER_REPOSITORY}"
 
 # Compile and upload the containers
-docker-compose build heuristic_optimizer
-docker-compose push  heuristic_optimizer
+docker-compose build
+docker-compose push

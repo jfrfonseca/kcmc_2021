@@ -217,11 +217,11 @@ int KCMC_Instance::parse_edge(const int stage, const std::string& token){
     /* Instance de-serializer helper method. Parses a single edge */
 
     // Parse the stage itself
-    std::unordered_set<std::string> tags = {"PS", "SS", "SK", "END"};
+    std::unordered_set<std::string> tags = {"PI", "II", "IS", "END"};
     if (isin(tags, token)){
-        if      (token == "PS"){return 5;}
-        else if (token == "SS"){return 6;}
-        else if (token == "SK"){return 7;}
+        if      (token == "PI"){return 5;}
+        else if (token == "II"){return 6;}
+        else if (token == "IS"){return 7;}
         else if (token == "END"){return 8;}
     } else if (stage == 4) {throw std::runtime_error("UNKNOWN TOKEN!");}
 
@@ -274,7 +274,7 @@ std::string KCMC_Instance::serialize() {
     out << "KCMC;" << this->key() << ';';
 
     // Set the poi-sensor connections
-    out << "PS;";
+    out << "PI;";
     for (source=0; source<num_pois; source++) {
         for (target=0; target<num_sensors; target++) {
             if (isin(poi_sensor[source], target)) {
@@ -284,7 +284,7 @@ std::string KCMC_Instance::serialize() {
     }
 
     // Set the sensor-sensor connections
-    out << "SS;";
+    out << "II;";
     for (source=0; source<num_sensors; source++) {
         for (target=source; target<num_sensors; target++) {
             if (isin(this->sensor_sensor[source], target)) {
@@ -294,7 +294,7 @@ std::string KCMC_Instance::serialize() {
     }
 
     // Set the sensor-sink connections
-    out << "SK;";
+    out << "IS;";
     for (source=0; source<num_sensors; source++) {
         for (target=0; target<num_sinks; target++) {
             if (isin(this->sensor_sink[source], target)) {

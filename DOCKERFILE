@@ -1,5 +1,5 @@
 # USING GUROBI IMAGE
-FROM gurobi/python:9.1.2
+FROM gurobi/python:9.5.1
 
 # INSTALL DEPS & CLEANUP
 RUN apt -y update \
@@ -28,8 +28,12 @@ COPY integer_linear_programs/ /app/integer_linear_programs/
 
  # USER CODE MUST BE PLACED IN /app
 WORKDIR /app
+RUN cd /app && ln -s heuristics/run_heuristics.sh . && ln -s integer_linear_programs/run_gurobi.sh .
 
 # Create and set the service user
 RUN groupadd --gid 1001 kcmc
 RUN useradd -M -b /app -d /app -c "KCMC User" --uid 1000 --gid 1001 kcmc
 USER kcmc
+
+# Add the GUROBI license
+COPY kcmc_gurobi.lic /opt/gurobi/gurobi.lic

@@ -1,8 +1,8 @@
 
 
 # STDLIB
-from time import time
-from typing import Any, Literal
+from time import time_ns
+from typing import Any
 from dataclasses import dataclass
 
 # GUROBI
@@ -12,6 +12,8 @@ from gurobipy import GRB
 # THIS PACKAGE
 from kcmc_instance import KCMC_Instance
 
+# Easier TIME function in MICRO SECONDS
+def time() -> int: return int(time_ns()/1000)
 
 @dataclass(frozen=True)
 class ModelSetupTime:
@@ -67,39 +69,41 @@ def gurobi_multi_flow(
     A_g = kcmc_instance.sensor_edges
     A = A_c + A_g + A_s
 
-    iC = kcmc_instance.inverse_coverage_graph
+    iC = kcmc_instance.coverage_graph
     L = [str(m) for m in range(kcmc_m)]
 
     e_model = time()
 
     # Set the variables ---------------------------------------------------------------------------
     s_x = time()
-    X = model.add_vars(I, L, name='x', vtype=GRB.BINARY)
+    X = model.addVars(I, L, name='x', vtype=GRB.BINARY)
+    X.start = [1]*len(I)*len(L)  # Start the first solution as using ALL SENSORS
     e_x = time()
     s_y = time()
     if y_binary:
-        Y = model.add_vars(A, P, L, name='y', vtype=GRB.BINARY)
+        Y = model.addVars(A, P, L, name='y', vtype=GRB.BINARY)
     else:
-        Y = model.add_vars(A, P, L, name='y')
+        Y = model.addVars(A, P, L, name='y')
+    Y.start = [1]*len(A)*len(P)*len(L)  # Start the first solution as using ALL EDGES
     e_y = time()
 
     # Set the objective function ------------------------------------------------------------------
     s_obj = time()
-    model.set_objective(X.sum('*', '*'), GRB.MINIMIZE)
+    model.setObjective(X.sum('*', '*'), GRB.MINIMIZE)
     e_obj = time()
 
     # Set the CONSTRAINTS -------------------------------------------------------------------------
     s_constr = time()
 
     # Disjunction -----------------------------------------
-    disjunction = model.add_constraints(
+    disjunction = model.addConstrs(
         (X.sum(i, '*') <= 1
          for i in I),
         name="disjunction"
     )
 
     # Flow ------------------------------------------------
-    flow_p = model.add_constraints(
+    flow_p = model.addConstrs(
         ((  gp.quicksum(Y.select(p, '*', p, l))
           - gp.quicksum(Y.select('*', p, p, l))) == 1
          for p in P
@@ -107,7 +111,7 @@ def gurobi_multi_flow(
         name="flow_p"
     )
 
-    flow_i = model.add_constraints(
+    flow_i = model.addConstrs(
         ((  gp.quicksum(Y.select(i, '*', p, l))
           - gp.quicksum(Y.select('*', i, p, l))) == 0
          for i in I
@@ -116,7 +120,7 @@ def gurobi_multi_flow(
         name="flow_i"
     )
 
-    flow_s = model.add_constraints(
+    flow_s = model.addConstrs(
         ((  gp.quicksum(Y.select(s, '*', p, l))
           - gp.quicksum(Y.select('*', s, p, l))) == -1
          for p in P
@@ -125,7 +129,7 @@ def gurobi_multi_flow(
     )
 
     # Projection ------------------------------------------
-    projection = model.add_constraints(
+    projection = model.addConstrs(
         (Y.sum(i, '*', p, l) <= X.sum(i, l)
          for i in I
          for p in P
@@ -134,7 +138,7 @@ def gurobi_multi_flow(
     )
 
     # K-Coverage ------------------------------------------
-    k_coverage = model.add_constraints(
+    k_coverage = model.addConstrs(
         (gp.quicksum(X.select(iC[p], '*')) >= kcmc_k
          for p in P),
         name="k_coverage"
@@ -181,47 +185,48 @@ def gurobi_single_flow(
     A_g = kcmc_instance.sensor_edges
     A = A_c + A_g + A_s
 
-    iC = kcmc_instance.inverse_coverage_graph
+    iC = kcmc_instance.coverage_graph
     # L = [str(m) for m in range(kcmc_m)] not used in this formulation
 
     e_model = time()
 
     # Set the variables ---------------------------------------------------------------------------
     s_x = time()
-    X = model.add_vars(I, name='x', vtype=GRB.BINARY)
+    X = model.addVars(I, name='x', vtype=GRB.BINARY)
     X.start = [1]*len(I)  # Start the first solution as using ALL SENSORS
     e_x = time()
     s_y = time()
     if y_binary:
-        Y = model.add_vars(A, P, name='y', vtype=GRB.BINARY)
+        Y = model.addVars(A, P, name='y', vtype=GRB.BINARY)
     else:
-        Y = model.add_vars(A, P, name='y')
+        Y = model.addVars(A, P, name='y')
+    Y.start = [1]*len(A)*len(P)  # Start the first solution as using ALL EDGES
     e_y = time()
 
     # Set the objective function ------------------------------------------------------------------
     s_obj = time()
-    model.set_objective(X.sum('*', '*'), GRB.MINIMIZE)
+    model.setObjective(X.sum('*', '*'), GRB.MINIMIZE)
     e_obj = time()
 
     # Set the CONSTRAINTS -------------------------------------------------------------------------
     s_constr = time()
 
     # Flow ------------------------------------------------
-    flow_p = model.add_constraints(
+    flow_p = model.addConstrs(
         ((  gp.quicksum(Y.select(p, '*', p))
           - gp.quicksum(Y.select('*', p, p))) == kcmc_m
          for p in P),
         name="flow_p"
     )
 
-    flow_s = model.add_constraints(
+    flow_s = model.addConstrs(
         ((  gp.quicksum(Y.select(s, '*', p))
           - gp.quicksum(Y.select('*', s, p))) == -1 * kcmc_m
          for p in P),
         name="flow_s"
     )
 
-    flow_i = model.add_constraints(
+    flow_i = model.addConstrs(
         ((  gp.quicksum(Y.select(i, '*', p))
           - gp.quicksum(Y.select('*', i, p))) == 0
          for i in I
@@ -230,7 +235,7 @@ def gurobi_single_flow(
     )
 
     # Projection ------------------------------------------
-    projection = model.add_constraints(
+    projection = model.addConstrs(
         (Y.sum(i, '*', p) <= X.sum(i)
          for i in I
          for p in P),
@@ -238,7 +243,7 @@ def gurobi_single_flow(
     )
 
     # K-Coverage ------------------------------------------
-    k_coverage = model.add_constraints(
+    k_coverage = model.addConstrs(
         (gp.quicksum(X.select(iC[p], '*')) >= kcmc_k
          for p in P),
         name="k_coverage"

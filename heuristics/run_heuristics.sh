@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 # Generate instances
 if [ ! -f /data/instances.csv ]
 then

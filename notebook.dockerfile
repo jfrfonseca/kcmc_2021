@@ -1,5 +1,5 @@
 # Adding GUROBI paraphernalia
-FROM gurobi/modeling-examples:9.1.2
+FROM gurobi/modeling-examples:9.5.2
 
 # Install other analisys dependencies and cleanup
 RUN apt update  -y \

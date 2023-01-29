@@ -37,7 +37,7 @@ Parameters:
     # 1024 (1 vCPU) - Available memory values: 2GB, 3GB, 4GB, 5GB, 6GB, 7GB, 8GB
     # 2048 (2 vCPU) - Available memory values: Between 4GB and 16GB in 1GB increments
     # 4096 (4 vCPU) - Available memory values: Between 8GB and 30GB in 1GB increments
-    Default: "2048"
+    Default: "1024"
 
   WorkerMemory:
     Type: String
@@ -47,7 +47,7 @@ Parameters:
     # 2GB, 3GB, 4GB, 5GB, 6GB, 7GB, 8GB - Available cpu values: 1024 (1 vCPU)
     # Between 4GB and 16GB in 1GB increments - Available cpu values: 2048 (2 vCPU)
     # Between 8GB and 30GB in 1GB increments - Available cpu values: 4096 (4 vCPU)
-    Default: "16GB"
+    Default: "8GB"
 
 Resources:
 

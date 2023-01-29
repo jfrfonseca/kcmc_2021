@@ -2,14 +2,9 @@ version: "3.9"
 
 services:
 
-  heuristic_optimizer:
+  heuristics:
     # Instances generator and heuristic optimizer
-    profiles:
-      - instances_generator
-      - heuristic
-      - heuristic_optimizer
-      - heuristics
-    command: '/app/heuristics/run_heuristics.sh'
+    command: '/app/run_heuristics.sh'
     build:
       dockerfile: DOCKERFILE
       context: .
@@ -20,60 +15,23 @@ services:
       - ./data:/data:rw
       - ./integer_linear_programs:/app/integer_linear_programs:ro
 
-  exact_optimizer:
-    profiles:
-      - gurobi
-      - optimizer
-      - exact
-      - exact_optimizer
-      - gurobi_optimizer
+  gurobi:
+    # GUROBI optimizer in given instances
     build:
-      dockerfile: gurobi.dockerfile
+      dockerfile: DOCKERFILE
       context: .
-    command: "python -u /home/gurobi/src/gurobi_optimizer.py --instances_file /data/instances.csv --limit 3600 --results s3://kcmc-heuristic/2022-06 --lock KCMC"
+    image: ${DOCKER_REPOSITORY}:latest
+    # command: '/app/run_gurobi.sh "KCMC;100 100 1;300 50 100;237599344;END" 1 1 single-flow -p 4'
+    # command: '/app/run_gurobi.sh "KCMC;100 100 1;300 50 100;237599344;END" 1 1 single-flow -p 4 -e reuse-dinic -a i44i68i69i77i79i88i89i91i92i95i97i98i99'
+    # command: '/app/run_gurobi.sh "KCMC;100 100 1;300 50 100;237599344;END" 1 1 multi-flow -p 4'
+    command: '/app/run_gurobi.sh "KCMC;100_100_1;300_50_100;237599344;END" 1 1 multi-flow -p 4 -e reuse-dinic -a i44i68i69i77i79i88i89i91i92i95i97i98i99'
     environment:
+      GRB_VERSION: 9.5.1
       GRB_CLIENT_LOG: 3
       PYTHONPATH: "/home/gurobi/src"
-      AWS_DEFAULT_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: ${AWS_SECRET_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      SHARDING: ${SHARDING}
+      RESULTS_TARGET: 's3://kcmc-heuristic/2023/gurobi'
     volumes:
-      - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
-      - ./data/results:/results:rw
-      - ./data:/data:ro
-      - ./src:/home/gurobi/src:ro
-      - ./builds:/app:ro
-
-  fast_optimizer:
-    profiles:
-      - fast_optimizer
-    build:
-      dockerfile: gurobi.dockerfile
-      context: .
-    command: "/home/gurobi/src/run_optimizer.sh"
-    environment:
-      PYTHONPATH: "/home/gurobi/src"
-    volumes:
-      - ./data/results:/results:rw
-      - ./data:/data:ro
-      - ./src:/home/gurobi/src:ro
-      - ./builds:/app:ro
-
-  parser:
-    profiles:
-      - parser
-    build:
-      dockerfile: notebook.dockerfile
-      context: .
-    entrypoint: ["python", "-u", "/home/gurobi/src/parse_results.py"]
-    environment:
-      PYTHONPATH: "/home/gurobi/src"
-    volumes:
-      - ./data/results:/results:ro
-      - ./data:/data:ro
-      - ./src:/home/gurobi/src:rw
-      - ./builds:/app:ro
+      - ./integer_linear_programs:/app/integer_linear_programs:ro
 
   notebook:
     profiles:

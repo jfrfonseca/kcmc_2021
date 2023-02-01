@@ -32,21 +32,7 @@ services:
       RESULTS_TARGET: 's3://kcmc-heuristic/2023/gurobi'
     volumes:
       - ./integer_linear_programs:/app/integer_linear_programs:ro
-
-  parser:
-    profiles:
-      - parser
-    build:
-      dockerfile: notebook.dockerfile
-      context: .
-    entrypoint: ["python", "-u", "/home/gurobi/src/parse_results.py"]
-    environment:
-      PYTHONPATH: "/home/gurobi/src"
-    volumes:
-      - ./data/results:/results:ro
-      - ./data:/data:ro
-      - ./src:/home/gurobi/src:rw
-      - ./builds:/app:ro
+      - ./kcmc_gurobi.lic:/opt/gurobi/gurobi.lic:ro
 
   notebook:
     profiles:
@@ -60,6 +46,6 @@ services:
       GRB_CLIENT_LOG: 3
       PYTHONPATH: "/src"
     volumes:
-      - ${GUROBI_LICENSE_FILE}:/opt/gurobi/gurobi.lic:ro
+      - ./kcmc_gurobi.lic:/opt/gurobi/gurobi.lic:ro
       - ./data:/data:ro
       - ./src:/src:ro

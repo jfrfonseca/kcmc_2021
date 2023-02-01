@@ -35,5 +35,5 @@ RUN groupadd --gid 1001 kcmc
 RUN useradd -M -b /app -d /app -c "KCMC User" --uid 1000 --gid 1001 kcmc
 USER kcmc
 
-# Add the GUROBI license
+# Add in the license file
 COPY kcmc_gurobi.lic /opt/gurobi/gurobi.lic

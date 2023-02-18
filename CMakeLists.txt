@@ -5,16 +5,21 @@ set(CMAKE_CXX_STANDARD 14)
 
 # Utilities and KCMC Instance Object ------------------------------------------
 ADD_LIBRARY(KCMC_Module
-    src/kcmc_components.cpp
-    src/kcmc_components.h
+            heuristics/kcmc_instance.cpp
+            heuristics/k_coverage.cpp
+            heuristics/m_connectivity.cpp
+            heuristics/optimizer.cpp
+            heuristics/kcmc_instance.h
 )
 target_link_libraries(KCMC_Module)
 
-
 # Instance generator ----------------------------------------------------------
-ADD_EXECUTABLE(instance_generator src/instance_generator.cpp)
-target_link_libraries(instance_generator KCMC_Module)
+ADD_EXECUTABLE(instances_generator heuristics/instances_generator.cpp)
+target_link_libraries(instances_generator KCMC_Module)
 
-## Optimizer -------------------------------------------------------------------
-#ADD_EXECUTABLE(kcmc_2021 src/main.cpp)
-#target_link_libraries(kcmc_2021 KCMC_Module)
+ADD_EXECUTABLE(instance_regenerator heuristics/instance_regenerator.cpp)
+target_link_libraries(instance_regenerator KCMC_Module)
+
+# Optimizer -------------------------------------------------------------------
+ADD_EXECUTABLE(optimizer heuristics/optimizer_runtime.cpp)
+target_link_libraries(optimizer KCMC_Module)

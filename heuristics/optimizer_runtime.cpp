@@ -16,7 +16,7 @@
 
 void printout(KCMC_Instance *instance, int k, int m,
               const std::string optimization_method,
-              const int cost,
+              const long long raw_cost,
               const long duration,
               std::unordered_set<int> &solution) {
 
@@ -25,6 +25,9 @@ void printout(KCMC_Instance *instance, int k, int m,
 
     // Prepare the output buffer
     std::ostringstream out;
+    int real_cost, added_sensors;
+    real_cost = (int) (raw_cost / SEP_BAND);
+    added_sensors = (int) (raw_cost % SEP_BAND);
 
     // Prepare a sorted array of integers containing the solution
     int array_solution[instance->num_sensors], pos=0;
@@ -42,8 +45,9 @@ void printout(KCMC_Instance *instance, int k, int m,
         << m << "\t"
         << optimization_method << "\t"
         << validity << "\t"
-        << cost << "\t"
+        << real_cost << "\t"
         << duration << "\t"
+        << added_sensors << "\t"
         << solution.size() << "\t"
         << int(1000.0 * (double)(solution.size()) / (double)(instance->num_sensors)) << "\t";
 
@@ -84,7 +88,8 @@ int main(int argc, char* const argv[]) {
 
     // Parse the input
     auto *instance = new KCMC_Instance(argv[1]);
-    int k, m, cost;
+    int k, m;
+    long long cost;
     k = atoi(argv[2]);
     m = atoi(argv[3]);
 

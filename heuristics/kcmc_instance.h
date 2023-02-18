@@ -20,6 +20,7 @@
 #define tSENSOR 1
 #define tSINK 2
 #define INFTY 999999
+#define SEP_BAND 10000
 
 
 /* NODE
@@ -188,10 +189,10 @@ class KCMC_Instance {
          * KCOV-DINIC
          * REUSE-DINIC
          */
-         int kcov_dinic(int k, int m, std::unordered_set<int> &solution);
-         int reuse_dinic(int k, int m, std::unordered_set<int> &solution);
-         int flood_dinic(int k, int m, std::unordered_set<int> &solution);
-         int best_dinic(int k, int m, std::unordered_set<int> &solution);
+         long long kcov_dinic(int k, int m, std::unordered_set<int> &solution);
+         long long reuse_dinic(int k, int m, std::unordered_set<int> &solution);
+         long long flood_dinic(int k, int m, std::unordered_set<int> &solution);
+         long long best_dinic(int k, int m, std::unordered_set<int> &solution);
 
     private:
 

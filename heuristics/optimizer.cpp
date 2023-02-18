@@ -1,10 +1,7 @@
 
 
 // STDLib dependencies
-#include <sstream>    // ostringstream
 #include <queue>      // queue
-#include <iostream>   // cin, cout, endl
-#include <iomanip>    // setfill, setw
 
 // Dependencies from this package
 #include "kcmc_instance.h"  // KCMC Instance class headers
@@ -20,7 +17,7 @@
 
 void KCMC_Instance::invert_sensor_set(std::unordered_set<int> &source_set, std::unordered_set<int> &target_set) {
     target_set.clear();
-    for (int i; i<this->num_sensors; i++) {
+    for (int i=0; i<this->num_sensors; i++) {
         if (not isin(source_set, i)) {
             target_set.insert(i);
         }
@@ -31,14 +28,13 @@ void KCMC_Instance::invert_sensor_set(std::unordered_set<int> &source_set, std::
 int KCMC_Instance::add_k_cov(int k, std::unordered_set<int> &active_sensors) {
 
     // Prepare buffers
-    // Each "iteration" is one call to the has_coverage method
-    int kcov, num_iterations=1, best_ic, best_kcov, ic_kcov;
+    int kcov, num_added_sensors=0, best_ic, best_kcov, ic_kcov;
     std::unordered_set<int> ignored, candidates, setminus;
     this->invert_sensor_set(active_sensors, ignored);
 
     // Check if we already have enough coverage. If we do, return immediately
     kcov = this->has_coverage(k, ignored);
-    if (kcov >= this->num_pois) {return num_iterations;}
+    if (kcov >= this->num_pois) {return num_added_sensors;}
 
     // If we do not have enough coverage, get all the POI-Covering sensors not already used
     for (const auto &a_poi : this->poi_sensor) {
@@ -59,7 +55,6 @@ int KCMC_Instance::add_k_cov(int k, std::unordered_set<int> &active_sensors) {
             // Checks if the ic_sensor, if included, would improve coverage
             setminus = set_diff(ignored, {ic_sensor});
             ic_kcov = this->has_coverage(k, setminus);
-            num_iterations++;
 
             // If it does improve coverage over the current best, mark it as the best
             if (ic_kcov > best_kcov) {
@@ -71,6 +66,7 @@ int KCMC_Instance::add_k_cov(int k, std::unordered_set<int> &active_sensors) {
         // Add the best selected POI-covering unused sensor to the set of used sensors
         // and remove it from the set of candidates.
         active_sensors.insert(best_ic);
+        num_added_sensors++;
         ignored = set_diff(ignored, {best_ic});
         candidates = set_diff(candidates, {best_ic});
 
@@ -78,8 +74,8 @@ int KCMC_Instance::add_k_cov(int k, std::unordered_set<int> &active_sensors) {
         kcov = best_kcov;
     }
 
-    // Return the number of iterations (calls to the has_coverage function)
-    return num_iterations;
+    // Return the number of added sensors to the result
+    return num_added_sensors;
 }
 
 
@@ -148,7 +144,7 @@ int KCMC_Instance::strongest_flow_first_search(int m, bool flood, std::unordered
 /** OPTIMIZER kcov_dinic
  */
 
-int KCMC_Instance::kcov_dinic(int k, int m, std::unordered_set<int> &solution) {
+long long KCMC_Instance::kcov_dinic(int k, int m, std::unordered_set<int> &solution) {
 
     // Prepare buffers
     int kcov, num_iterations=1;
@@ -168,6 +164,8 @@ int KCMC_Instance::kcov_dinic(int k, int m, std::unordered_set<int> &solution) {
     // If we got here, we know the instance is capable of k-coverage,
     // AND we found the sensors required for m-connectivity.
     // Now we add sensors to the solution until it holds both properties
+    // The last digits of the num_iterations value hold the number of added sensors by the add_k_cov method
+    num_iterations = num_iterations * SEP_BAND;
     num_iterations += this->add_k_cov(k, solution);
 
     // Return the total number of iterations of the DINIC and AddKCov procedures
@@ -178,7 +176,7 @@ int KCMC_Instance::kcov_dinic(int k, int m, std::unordered_set<int> &solution) {
 /** OPTIMIZER reuse_dinic
  */
 
-int KCMC_Instance::reuse_dinic(int k, int m, std::unordered_set<int> &solution) {
+long long KCMC_Instance::reuse_dinic(int k, int m, std::unordered_set<int> &solution) {
 
     // Prepare buffers
     int kcov, num_iterations=1;
@@ -198,6 +196,8 @@ int KCMC_Instance::reuse_dinic(int k, int m, std::unordered_set<int> &solution) 
     // If we got here, we know the instance is capable of k-coverage,
     // AND we found the sensors required for m-connectivity.
     // Now we add sensors to the solution until it holds both properties
+    // The last digits of the num_iterations value hold the number of added sensors by the add_k_cov method
+    num_iterations = num_iterations * SEP_BAND;
     num_iterations += this->add_k_cov(k, solution);
 
     // Return the total number of iterations of the DINIC and AddKCov procedures
@@ -208,7 +208,7 @@ int KCMC_Instance::reuse_dinic(int k, int m, std::unordered_set<int> &solution) 
 /** OPTIMIZER flood_dinic
  */
 
-int KCMC_Instance::flood_dinic(int k, int m, std::unordered_set<int> &solution) {
+long long KCMC_Instance::flood_dinic(int k, int m, std::unordered_set<int> &solution) {
 
     // Prepare buffers
     int kcov, num_iterations=1;
@@ -228,6 +228,8 @@ int KCMC_Instance::flood_dinic(int k, int m, std::unordered_set<int> &solution) 
     // If we got here, we know the instance is capable of k-coverage,
     // AND we found the sensors required for m-connectivity.
     // Now we add sensors to the solution until it holds both properties
+    // The last digits of the num_iterations value hold the number of added sensors by the add_k_cov method
+    num_iterations = num_iterations * SEP_BAND;
     num_iterations += this->add_k_cov(k, solution);
 
     // Return the total number of iterations of the DINIC and AddKCov procedures
@@ -238,25 +240,41 @@ int KCMC_Instance::flood_dinic(int k, int m, std::unordered_set<int> &solution) 
 /** OPTIMIZER best_dinic
  */
 
-int KCMC_Instance::best_dinic(int k, int m, std::unordered_set<int> &solution) {
+long long KCMC_Instance::best_dinic(int k, int m, std::unordered_set<int> &solution) {
 
     // Prepare buffers
-    int cost=0;
+    long long raw_cost=0;
+    int cost_kcovd, added_kcovd, cost_reused, added_reused, cost_flodd, added_flodd, added_best;
     std::unordered_set<int> emptyset, sol_kcovd, sol_reused, sol_floodd;
 
     // Run each previous method
-    cost += kcov_dinic(k, m, sol_kcovd);
-    cost += reuse_dinic(k, m, sol_reused);
-    cost += flood_dinic(k, m, sol_floodd);
+    raw_cost = kcov_dinic(k, m, sol_kcovd);
+    cost_kcovd = (int) (raw_cost / SEP_BAND);
+    added_kcovd = (int) (raw_cost % SEP_BAND);
 
-    // Store the best result and return the cost
+    raw_cost = reuse_dinic(k, m, sol_reused);
+    cost_reused = (int) (raw_cost / SEP_BAND);
+    added_reused = (int) (raw_cost % SEP_BAND);
+
+    raw_cost = flood_dinic(k, m, sol_floodd);
+    cost_flodd = (int) (raw_cost / SEP_BAND);
+    added_flodd = (int) (raw_cost % SEP_BAND);
+
+    // Store the best result
     solution.clear();
     solution = set_merge(emptyset, sol_kcovd);
+    added_best = added_kcovd;
+
     if (sol_reused.size() < solution.size()) {
         solution = set_merge(emptyset, sol_reused);
+        added_best = added_reused;
     }
+
     if (sol_floodd.size() < solution.size()) {
         solution = set_merge(emptyset, sol_floodd);
+        added_best = added_flodd;
     }
-    return cost;
+
+    // Return the processed cost
+    return ((cost_kcovd + cost_reused + cost_flodd) * SEP_BAND) + added_best;
 }

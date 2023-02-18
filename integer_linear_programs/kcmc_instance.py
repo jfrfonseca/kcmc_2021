@@ -177,7 +177,6 @@ class KCMC_Instance(object):
                    self.key_str,
                    str(kcmc_k), str(kcmc_m),
                    ''.join(['i'+str(int(i)) for i in active_sensors])]
-        print(' '.join(command))
         regenerator = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout,stderr = regenerator.communicate()
         if stderr is None: return False, f'ERROR ON THE INSTANCE REGENERATOR.\nSTDOUT:{stdout}\n\nSTDERR:{stderr}'

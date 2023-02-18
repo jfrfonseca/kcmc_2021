@@ -226,6 +226,7 @@ class KCMC_Instance {
 
 };
 
+void print_tikz(KCMC_Instance *instance, double width, bool only_active);
 void print_tikz(KCMC_Instance *instance, double width);
 
 bool validate_kcmc_instance(KCMC_Instance *instance, int k, int m, std::unordered_set<int> active_sensors);

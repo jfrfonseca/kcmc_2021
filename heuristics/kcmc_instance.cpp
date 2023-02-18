@@ -344,7 +344,7 @@ std::string KCMC_Instance::serialize() {
     return out.str();
 }
 
-void print_tikz(KCMC_Instance *instance, double width) {
+void print_tikz(KCMC_Instance *instance, double width, bool only_active) {
     /** LATEX TIKZ
      * Symbols:
      * \def\sensor{\triangle}
@@ -355,56 +355,85 @@ void print_tikz(KCMC_Instance *instance, double width) {
 
     // Prepare buffers
     int i, j;
+    std::string term;
     Placement pl_pois[instance->num_pois], pl_sensors[instance->num_sensors], pl_sinks[instance->num_sinks];
     instance->get_placements(pl_pois, pl_sensors, pl_sinks);
 
     double scale = width/instance->area_side;
 
+    // HEADER
     std::cout << std::endl;
+    std::cout << R"(\def\sensor{\triangle} )" << std::endl;
+    std::cout << R"(\def\onsensor{\blacktriangle} )" << std::endl;
+    std::cout << R"(\def\sink{\otimes} )" << std::endl;
+    std::cout << R"(\def\poi{\ast} )" << std::endl;
     std::cout << "\\begin{figure}[t] " << std::endl;
     std::cout << "  \\centering " << std::endl;
     std::cout << "  \\begin{tikzpicture} " << std::endl;
+
+    // Define the Sink
     std::cout << std::setprecision(2) << "    \\draw (" << pl_sinks[0].x * scale << "," << pl_sinks[0].y * scale << ") node (s0) {$\\sink$};" << std::endl;
     std::cout << std::setprecision(2) << "    \\draw (" << pl_sinks[0].x * scale << "," << pl_sinks[0].y * scale << ") node[below] {$s_0$};" << std::endl;
     std::cout << std::endl;
+
+    // Define the POIs
     for (j=0; j<instance->num_pois; j++) {
         std::cout << std::setprecision(2) << "    \\draw (" << pl_pois[j].x * scale << "," << pl_pois[j].y * scale << ") node (p" << j << ") {$\\poi$};" << std::endl;
         std::cout << std::setprecision(2) << "    \\draw (" << pl_pois[j].x * scale << "," << pl_pois[j].y * scale << ") node[below] {$p_{" << j << "}$};" << std::endl;
     }
     std::cout << std::endl;
+
+    // Define the Sensors
     for (j=0; j<instance->num_sensors; j++) {
-        std::cout << std::setprecision(2) << "    \\draw (" << pl_sensors[j].x * scale << "," << pl_sensors[j].y * scale << ") node (i" << j << ") {$\\sensor$};" << std::endl;
+        if (isin(instance->active_sensors, j)) {
+            term = "{$\\onsensor$}";
+        } else {
+            if (only_active) {continue;}
+            term = "{$\\sensor$}";
+        }
+        std::cout << std::setprecision(2) << "    \\draw (" << pl_sensors[j].x * scale << "," << pl_sensors[j].y * scale << ") node (i" << j << ") " << term << ";" << std::endl;
         std::cout << std::setprecision(2) << "    \\draw (" << pl_sensors[j].x * scale << "," << pl_sensors[j].y * scale << ") node[below] {$i_{" << j << "}$};" << std::endl;
     }
     std::cout << std::endl;
 
-    // Print the connections
+    // Print the connections POI-SENSOR
     for (j=0; j<instance->num_pois; j++) {
         for (i=0; i<instance->num_sensors; i++) {
+            if (only_active and (not isin(instance->active_sensors, i))) {continue;}  // Skip the inactive sensor
             if (isin(instance->poi_sensor[j], i)) {
                 std::cout << "    \\draw[dotted] (p" << j << ") -- (i" << i << ");" << std::endl;
             }
         }
     }
     std::cout << std::endl;
+
+    // Print the connections SENSOR-SINK
     for (i=0; i<instance->num_sensors; i++) {
+        if (only_active and (not isin(instance->active_sensors, i))) {continue;}  // Skip the inactive sensor
         if (isin(instance->sink_sensor[0], i)) {
             std::cout << "    \\draw (s0) -- (i" << i << ");" << std::endl;
         }
     }
     std::cout << std::endl;
+
+    // Print the connections SENSOR-SENSOR
     for (j=0; j<instance->num_sensors; j++) {
+        if (only_active and (not isin(instance->active_sensors, j))) {continue;}  // Skip the inactive start sensor
         for (i=j; i<instance->num_sensors; i++) {
+            if (only_active and (not isin(instance->active_sensors, i))) {continue;}  // Skip the inactive end sensor
             if (isin(instance->sensor_sensor[j], i)) {
                 std::cout << "    \\draw (i" << j << ") -- (i" << i << ");" << std::endl;
             }
         }
     }
     std::cout << std::endl;
+
+    // FOOTER
     std::cout << "  \\end{tikzpicture} " << std::endl;
     std::cout << "\\end{figure} " << std::endl;
     std::cout << std::endl;
 }
+void print_tikz(KCMC_Instance *instance, double width) {print_tikz(instance, width, false);}
 
 // VALIDATOR ###########################################################################################################
 

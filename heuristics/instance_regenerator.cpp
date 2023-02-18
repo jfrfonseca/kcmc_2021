@@ -46,13 +46,13 @@ int main(int argc, char* const argv[]) {
         // De-serialize the instance (it might be the short or long form)
         auto *instance = new KCMC_Instance(argv[1], active_sensors);
 
+        // Print the instance as LaTeX TIKZ minimized to only the active sensors
+        print_tikz(instance, 10, true);
+
         // Validate the instance
         if (not validate_kcmc_instance(instance, k, m, active_sensors)) {
             throw std::runtime_error("INVALID INSTANCE!");
         }
-
-        // Print the instance as LaTeX TIKZ, a sign of success
-        print_tikz(instance, 10);
 
     // If we have only two arguments
     } else {

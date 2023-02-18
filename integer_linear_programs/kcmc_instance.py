@@ -4,10 +4,15 @@ KCMC_Instance Object
 
 
 import sys
+import json
 import subprocess
-from typing import List, Set, Tuple, Dict
+from io import StringIO
+from typing import Any, List, Set, Tuple, Dict
+
+from pandas import read_csv as pd_read_csv
 
 
+OPTIMIZER_EXECUTABLE = '/app/optimizer'
 REGENERATOR_EXECUTABLE = '/app/instance_regenerator'
 
 
@@ -168,14 +173,35 @@ class KCMC_Instance(object):
         _dict[key].add(value)
 
     def validate(self, kcmc_k:int, kcmc_m:int, *active_sensors) -> (bool, str):
-        regenerator = subprocess.Popen(
-            [REGENERATOR_EXECUTABLE, self.key_str, str(kcmc_k), str(kcmc_m)] + ['i'+str(int(i)) for i in active_sensors],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
+        command = [REGENERATOR_EXECUTABLE,
+                   self.key_str,
+                   str(kcmc_k), str(kcmc_m),
+                   ''.join(['i'+str(int(i)) for i in active_sensors])]
+        print(' '.join(command))
+        regenerator = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout,stderr = regenerator.communicate()
         if stderr is None: return False, f'ERROR ON THE INSTANCE REGENERATOR.\nSTDOUT:{stdout}\n\nSTDERR:{stderr}'
+        if stdout is None: return False, f'ERROR ON THE INSTANCE REGENERATOR.\nSTDOUT:{stdout}\n\nSTDERR:{stderr}'
+        if len(stdout) < 10: return False, f'ERROR ON THE INSTANCE REGENERATOR.\nSTDOUT:{stdout}\n\nSTDERR:{stderr}'
         tikz = stdout.decode()
         return True, tikz
+
+    def optimize(self, kcmc_k:int, kcmc_m:int) -> (bool, Any):
+        optimizer = subprocess.Popen(
+            [OPTIMIZER_EXECUTABLE, self.key_str, str(kcmc_k), str(kcmc_m)],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        stdout,stderr = optimizer.communicate()
+        if stderr is None: return False, f'ERROR ON THE INSTANCE OPTIMIZER.\nSTDOUT:{stdout}\n\nSTDERR:{stderr}'
+        data = pd_read_csv(StringIO(stdout.decode()), sep='\t', names=[
+            'instance_key', 'kcmc_k', 'kcmc_m', 'heuristic', 'valid',
+            'cost', 'duration', 'size', 'relative_size', 'solution'
+        ])
+        data['valid'] = data['valid'].astype(bool)
+        data['duration'] = data['duration'] / 1e6
+        data['relative_size'] = data['relative_size'] / 1000
+        data['solution'] = data['solution'].apply(json.loads)
+        return True, data
 
 
 # RUNTIME ##############################################################################################################

@@ -167,6 +167,16 @@ class KCMC_Instance(object):
             _dict[key] = set()
         _dict[key].add(value)
 
+    def validate(self, kcmc_k:int, kcmc_m:int, *active_sensors) -> (bool, str):
+        regenerator = subprocess.Popen(
+            [REGENERATOR_EXECUTABLE, self.key_str, str(kcmc_k), str(kcmc_m)] + ['i'+str(int(i)) for i in active_sensors],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        stdout,stderr = regenerator.communicate()
+        if stderr is None: return False, f'ERROR ON THE INSTANCE REGENERATOR.\nSTDOUT:{stdout}\n\nSTDERR:{stderr}'
+        tikz = stdout.decode()
+        return True, tikz
+
 
 # RUNTIME ##############################################################################################################
 

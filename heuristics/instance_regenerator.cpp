@@ -28,32 +28,6 @@ void help() {
 }
 
 
-bool validate_kcmc_instance(KCMC_Instance *instance, int k, int m, std::unordered_set<int> active_sensors) {
-
-    // Prepare buffers
-    int coverage;
-    std::unordered_set<int> buffer_set;
-
-    // Checks if it has enough coverage. If not, return false
-    coverage = instance->has_coverage(k, buffer_set);
-    if (coverage < instance->num_pois) {return false;}
-
-    // Checks if the coverage set is made EXCLUSIVELY from the active sensors
-    if (not set_diff(buffer_set, active_sensors).empty()) {return false;}
-    buffer_set.clear();
-
-    // Checks if it has enough connectivity. If not, return false
-    instance->dinic(m, buffer_set);
-    if (buffer_set.empty()) {return false;}
-
-    // Checks if the communication set is made EXCLUSIVELY from the active sensors
-    if (not set_diff(buffer_set, active_sensors).empty()) {return false;}
-
-    // If we got here, success!
-    return true;
-}
-
-
 int main(int argc, char* const argv[]) {
     if ((argc == 0) or (argc == 1) or (argc == 3)) { help(); }
 
@@ -77,8 +51,8 @@ int main(int argc, char* const argv[]) {
             throw std::runtime_error("INVALID INSTANCE!");
         }
 
-        // Print the long form of the instance as a sign of success
-        printf("%s\n", instance->serialize().c_str());
+        // Print the instance as LaTeX TIKZ, a sign of success
+        print_tikz(instance, 10);
 
     // If we have only two arguments
     } else {

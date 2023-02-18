@@ -3,7 +3,6 @@
 // STDLib dependencies
 #include <iostream>   // cin, cout, endl
 #include <chrono>     // time functions
-#include <iomanip>    // ostringstream
 #include <algorithm>  // transform
 
 // Dependencies from this package
@@ -13,32 +12,6 @@
 /* #####################################################################################################################
  * RUNTIME
  * */
-
-
-bool validate_kcmc_instance(KCMC_Instance *instance, int k, int m, std::unordered_set<int> active_sensors) {
-
-    // Prepare buffers
-    int coverage;
-    std::unordered_set<int> buffer_set;
-
-    // Checks if it has enough coverage. If not, return false
-    coverage = instance->has_coverage(k, buffer_set);
-    if (coverage < instance->num_pois) {return false;}
-
-    // Checks if the coverage set is made EXCLUSIVELY from the active sensors
-    if (not set_diff(buffer_set, active_sensors).empty()) {return false;}
-    buffer_set.clear();
-
-    // Checks if it has enough connectivity. If not, return false
-    instance->dinic(m, buffer_set);
-    if (buffer_set.empty()) {return false;}
-
-    // Checks if the communication set is made EXCLUSIVELY from the active sensors
-    if (not set_diff(buffer_set, active_sensors).empty()) {return false;}
-
-    // If we got here, success!
-    return true;
-}
 
 
 void printout(KCMC_Instance *instance, int k, int m,

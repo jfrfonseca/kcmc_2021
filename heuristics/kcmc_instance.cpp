@@ -343,3 +343,93 @@ std::string KCMC_Instance::serialize() {
     out << "END";
     return out.str();
 }
+
+void print_tikz(KCMC_Instance *instance, double width) {
+    /** LATEX TIKZ
+     * Symbols:
+     * \def\sensor{\triangle}
+     * \def\onsensor{\blacktriangle}
+     * \def\sink{\otimes}
+     * \def\poi{\ast}
+     */
+
+    // Prepare buffers
+    int i, j;
+    Placement pl_pois[instance->num_pois], pl_sensors[instance->num_sensors], pl_sinks[instance->num_sinks];
+    instance->get_placements(pl_pois, pl_sensors, pl_sinks);
+
+    double scale = width/instance->area_side;
+
+    std::cout << std::endl;
+    std::cout << "\\begin{figure}[t] " << std::endl;
+    std::cout << "  \\centering " << std::endl;
+    std::cout << "  \\begin{tikzpicture} " << std::endl;
+    std::cout << std::setprecision(2) << "    \\draw (" << pl_sinks[0].x * scale << "," << pl_sinks[0].y * scale << ") node (s0) {$\\sink$};" << std::endl;
+    std::cout << std::setprecision(2) << "    \\draw (" << pl_sinks[0].x * scale << "," << pl_sinks[0].y * scale << ") node[below] {$s_0$};" << std::endl;
+    std::cout << std::endl;
+    for (j=0; j<instance->num_pois; j++) {
+        std::cout << std::setprecision(2) << "    \\draw (" << pl_pois[j].x * scale << "," << pl_pois[j].y * scale << ") node (p" << j << ") {$\\poi$};" << std::endl;
+        std::cout << std::setprecision(2) << "    \\draw (" << pl_pois[j].x * scale << "," << pl_pois[j].y * scale << ") node[below] {$p_{" << j << "}$};" << std::endl;
+    }
+    std::cout << std::endl;
+    for (j=0; j<instance->num_sensors; j++) {
+        std::cout << std::setprecision(2) << "    \\draw (" << pl_sensors[j].x * scale << "," << pl_sensors[j].y * scale << ") node (i" << j << ") {$\\sensor$};" << std::endl;
+        std::cout << std::setprecision(2) << "    \\draw (" << pl_sensors[j].x * scale << "," << pl_sensors[j].y * scale << ") node[below] {$i_{" << j << "}$};" << std::endl;
+    }
+    std::cout << std::endl;
+
+    // Print the connections
+    for (j=0; j<instance->num_pois; j++) {
+        for (i=0; i<instance->num_sensors; i++) {
+            if (isin(instance->poi_sensor[j], i)) {
+                std::cout << "    \\draw[dotted] (p" << j << ") -- (i" << i << ");" << std::endl;
+            }
+        }
+    }
+    std::cout << std::endl;
+    for (i=0; i<instance->num_sensors; i++) {
+        if (isin(instance->sink_sensor[0], i)) {
+            std::cout << "    \\draw (s0) -- (i" << i << ");" << std::endl;
+        }
+    }
+    std::cout << std::endl;
+    for (j=0; j<instance->num_sensors; j++) {
+        for (i=j; i<instance->num_sensors; i++) {
+            if (isin(instance->sensor_sensor[j], i)) {
+                std::cout << "    \\draw (i" << j << ") -- (i" << i << ");" << std::endl;
+            }
+        }
+    }
+    std::cout << std::endl;
+    std::cout << "  \\end{tikzpicture} " << std::endl;
+    std::cout << "\\end{figure} " << std::endl;
+    std::cout << std::endl;
+}
+
+// VALIDATOR ###########################################################################################################
+
+bool validate_kcmc_instance(KCMC_Instance *instance, int k, int m, std::unordered_set<int> active_sensors) {
+
+    // Prepare buffers
+    int coverage;
+    std::unordered_set<int> buffer_set;
+
+    // Checks if it has enough coverage. If not, return false
+    coverage = instance->has_coverage(k, buffer_set);
+    if (coverage < instance->num_pois) {return false;}
+
+    // Checks if the coverage set is made EXCLUSIVELY from the active sensors
+    if (not set_diff(buffer_set, active_sensors).empty()) {return false;}
+    buffer_set.clear();
+
+    // Checks if it has enough connectivity. If not, return false
+    instance->dinic(m, buffer_set);
+    if (buffer_set.empty()) {return false;}
+
+    // Checks if the communication set is made EXCLUSIVELY from the active sensors, or the set is empty
+    if (active_sensors.empty()) {return true;}
+    if (not set_diff(buffer_set, active_sensors).empty()) {return false;}
+
+    // If we got here, success!
+    return true;
+}

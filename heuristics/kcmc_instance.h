@@ -9,6 +9,8 @@
 #include <unordered_set>  // unordered_set object
 #include <unordered_map>  // unordered_map HashMap object
 #include <cmath>          // sqrt, pow
+#include <iostream>       // cin, cout, endl
+#include <iomanip>        // std::setprecision
 
 
 #ifndef KCMC_INSTANCE_H
@@ -18,8 +20,6 @@
 #define tSENSOR 1
 #define tSINK 2
 #define INFTY 999999
-#define INSPECTION_FREQUENCY 100
-#define WORST_FITNESS 9999999999
 
 
 /* NODE
@@ -225,5 +225,9 @@ class KCMC_Instance {
         int strongest_flow_first_search(int m, bool flood, std::unordered_set<int> &all_visited);
 
 };
+
+void print_tikz(KCMC_Instance *instance, double width);
+
+bool validate_kcmc_instance(KCMC_Instance *instance, int k, int m, std::unordered_set<int> active_sensors);
 
 #endif

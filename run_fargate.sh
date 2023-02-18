@@ -10,13 +10,13 @@ COUNT=1
 
 # Prepare the payload for the OPTIMIZER GUROBI
 if [ ${1} = "gurobi" ]; then
-# echo "Using GUROBI"
+  echo "Using GUROBI"
 
-TASK_DEFINITION=${2}
+  TASK_DEFINITION=${2}
 
-# Prepare the command. The hard part is to make it split right
-PYARGS=${@}
-COMMAND=$(python << EOF0
+  # Prepare the command. The hard part is to make it split right
+  PYARGS=${@}
+  COMMAND=$(python << EOF0
 import shlex, json, sys
 args = "${PYARGS}"
 pref, suf = args.split('KCMC;')
@@ -28,8 +28,8 @@ print(json.dumps(["/app/run_gurobi.sh"]+args))
 EOF0
 )
 
-# Prepare the container overrides
-OVERRIDES=$(jq --compact-output << EOF
+  # Prepare the container overrides
+  OVERRIDES=$(jq --compact-output << EOF
 {
   "containerOverrides": [{
     "name": "worker",
@@ -46,8 +46,8 @@ EOF
 )
 
 else
-
-OVERRIDES=$(jq --compact-output << EOF2
+  TASK_DEFINITION=${1}
+  OVERRIDES=$(jq --compact-output << EOF2
 {
   "cpu": "4096",
   "containerOverrides": [{
@@ -86,6 +86,6 @@ aws ecs run-task \
   --count ${COUNT} \
   --network-configuration ${NETWORK_CONF} \
   --launch-type FARGATE \
-  --region ${AWS_REGION} \
+  --region ${AWS_DEFAULT_REGION} \
   --overrides ${OVERRIDES} \
   --query "tasks[0].taskArn"

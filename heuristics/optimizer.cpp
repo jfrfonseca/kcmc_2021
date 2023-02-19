@@ -2,6 +2,7 @@
 
 // STDLib dependencies
 #include <queue>      // queue
+#include <algorithm>  // std::find, std::set_intersection
 
 // Dependencies from this package
 #include "kcmc_instance.h"  // KCMC Instance class headers
@@ -15,67 +16,80 @@
  */
 
 
-void KCMC_Instance::invert_sensor_set(std::unordered_set<int> &source_set, std::unordered_set<int> &target_set) {
-    target_set.clear();
-    for (int i=0; i<this->num_sensors; i++) {
-        if (not isin(source_set, i)) {
-            target_set.insert(i);
-        }
-    }
-}
-
-
 int KCMC_Instance::add_k_cov(int k, std::unordered_set<int> &active_sensors) {
 
     // Prepare buffers
-    int kcov, num_added_sensors=0, best_ic, best_kcov, ic_kcov;
-    std::unordered_set<int> ignored, candidates, setminus;
-    this->invert_sensor_set(active_sensors, ignored);
+    int initial_size = (int)(active_sensors.size()), active_coverage, lacking;
+    std::set<int> set_inactive_sensors;
+    std::unordered_map<int, int> tally, poi_deficit;
+    std::unordered_map<int, std::set<int>> map_deficit;
+    std::set<LevelNode, CompareLevelNode> q;
 
-    // Check if we already have enough coverage. If we do, return immediately
-    kcov = this->has_coverage(k, ignored);
-    if (kcov >= this->num_pois) {return num_added_sensors;}
+    // Get a SET of INACTIVE sensors
+    // Ise std::set instead of std::unordered_set for set intersection efficiencies in implementation
+    for (int i=0; i < this->num_sensors; i++){
+        if (not isin(active_sensors, i)) {
+            set_inactive_sensors.insert(i);
+        }
+    }
 
-    // If we do not have enough coverage, get all the POI-Covering sensors not already used
-    for (const auto &a_poi : this->poi_sensor) {
-        for (const int ic_sensor : a_poi.second) {
-            if (not isin(active_sensors, ic_sensor)) {
-                candidates.insert(ic_sensor);
+    // For each POI
+    for (const auto &a_poi : this->set_poi_sensor) {
+
+        // Get the set of INACTIVE SENSORS that COULD cover the POI if were active
+        std::set<int> inactive_coverage;  // A NEW set must be created in each iteration!
+        std::set_intersection(a_poi.second.begin(), a_poi.second.end(),
+                              set_inactive_sensors.begin(), set_inactive_sensors.end(),
+                              std::inserter(inactive_coverage, inactive_coverage.end()));
+
+        // If the POI has enough coverage, skip it
+        active_coverage = (int)(a_poi.second.size() - inactive_coverage.size());
+        if (active_coverage >= k) {
+            continue;
+        }
+
+        // Store the inactive coverage for the POI
+        map_deficit[a_poi.first] = inactive_coverage;
+        poi_deficit[a_poi.first] = k - active_coverage;  // The DEFICIT is how many more sensors we need for the POI
+
+        // Vote on each inactive sensor that could cover the POI
+        for (const int i : inactive_coverage) {
+            if (not isin(tally, i)) {tally[i] = 0;}
+            tally[i]++;
+        }
+    }
+
+    // If we have no POIs that need coverage, return immediately!
+    if (map_deficit.empty()) {return 0;}
+
+    // If we got here, we need to add more sensors to the solution.
+    // Make a queue with the sensors that could cover more POIs first
+    for (const auto &a_voted_sensor : tally) {q.insert({a_voted_sensor.first, a_voted_sensor.second});}
+
+    // For each POI that needs coverage
+    for (const auto &a_poi : map_deficit) {
+        lacking = poi_deficit[a_poi.first];  // How many we need
+
+        // For each sensor in the queue, in order of sensors that cover the most POIs with insufficient coverage
+        for (const LevelNode a_voted_sensor : q) {
+
+            // If the sensor covers the POI
+            if (isin(a_poi.second, a_voted_sensor.index)) {
+
+                // Add it to the solution
+                active_sensors.insert(a_voted_sensor.index);
+
+                // Decrease the number of sensors we still need
+                lacking--;
+
+                // If we need no more sensors, we are done processing of the current POI
+                if (lacking == 0) {break;}
             }
         }
     }
 
-    // While we still to not have enough coverage
-    while (kcov < this->num_pois) {
-        best_kcov = kcov;
-
-        // For each POI-covering sensor not already used
-        for (const int ic_sensor : candidates) {
-
-            // Checks if the ic_sensor, if included, would improve coverage
-            setminus = set_diff(ignored, {ic_sensor});
-            ic_kcov = this->has_coverage(k, setminus);
-
-            // If it does improve coverage over the current best, mark it as the best
-            if (ic_kcov > best_kcov) {
-                best_ic = ic_sensor;
-                best_kcov = ic_kcov;
-            }
-        }
-
-        // Add the best selected POI-covering unused sensor to the set of used sensors
-        // and remove it from the set of candidates.
-        active_sensors.insert(best_ic);
-        num_added_sensors++;
-        ignored = set_diff(ignored, {best_ic});
-        candidates = set_diff(candidates, {best_ic});
-
-        // Store the best coverage as the current coverage
-        kcov = best_kcov;
-    }
-
-    // Return the number of added sensors to the result
-    return num_added_sensors;
+    // If we got here, all POIs now have enough coverage! Hopefully not many sensors were added. We return how many
+    return (int)(active_sensors.size()) - initial_size;
 }
 
 

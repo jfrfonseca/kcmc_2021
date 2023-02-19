@@ -59,7 +59,7 @@ KCMC_Instance::KCMC_Instance(int num_pois, int num_sensors, int num_sinks,
 /** INSTANCE DE-SERIALIZER CONSTRUCTOR
  * Constructor of a KCMC instance object from a serialized string
  */
-KCMC_Instance::KCMC_Instance(const std::string& serialized_kcmc_instance, std::unordered_set<int> active_sensors={}) {
+KCMC_Instance::KCMC_Instance(const std::string& serialized_kcmc_instance, std::unordered_set<int> active_sensors) {
     /** Instance de-serializer constructor
      * This constructor is used to load a previously-generated instance. Node placements are irrelevant
      */
@@ -138,7 +138,9 @@ KCMC_Instance::KCMC_Instance(const std::string& serialized_kcmc_instance, std::u
     if (this->num_sinks == 0) {throw std::runtime_error("INSTANCE HAS NO SINKS!");}
 
     // If we got here and have no edges, we must re-generate this instance
-    if (has_edges == 0) {this->regenerate();}
+    if (has_edges == 0) {
+        this->regenerate();
+    }
 }
 KCMC_Instance::KCMC_Instance(const std::string& serialized_kcmc_instance) : KCMC_Instance(serialized_kcmc_instance, {}) {}
 
@@ -216,6 +218,7 @@ void KCMC_Instance::regenerate() {
         for (j=0; j < this->num_pois; j++) {
             if (distance(pl_sensors[i], pl_pois[j]) <= this->sensor_coverage_radius) {
                 push(this->poi_sensor, j, i);
+                push(this->set_poi_sensor, j, i);
                 push(this->sensor_poi, i, j);
             }
         }
@@ -264,6 +267,7 @@ int KCMC_Instance::parse_edge(const int stage, const std::string& token){
         case 5:
             if (isin(this->active_sensors, source) and isin(this->active_sensors, target)) {
                 push(this->poi_sensor, source, target);
+                push(this->set_poi_sensor, source, target);
                 push(this->sensor_poi, target, source);
             }
             return 5;
@@ -437,27 +441,43 @@ void print_tikz(KCMC_Instance *instance, double width) {print_tikz(instance, wid
 
 // VALIDATOR ###########################################################################################################
 
-bool validate_kcmc_instance(KCMC_Instance *instance, int k, int m, std::unordered_set<int> active_sensors) {
+bool validate_kcmc_instance(KCMC_Instance *external_instance, int k, int m, std::unordered_set<int> active_sensors) {
 
     // Prepare buffers
     int coverage;
+    KCMC_Instance *local_instance;
     std::unordered_set<int> buffer_set;
 
+    // If we have an ACTIVE SENSORS set, recreate the instance using only those sensors
+    if (not active_sensors.empty()) {
+        local_instance = new KCMC_Instance("KCMC;"+external_instance->key()+";END", active_sensors);
+    } else {
+        local_instance = external_instance;
+    }
+
     // Checks if it has enough coverage. If not, return false
-    coverage = instance->has_coverage(k, buffer_set);
-    if (coverage < instance->num_pois) {return false;}
+    coverage = local_instance->has_coverage(k, buffer_set);
+    if (coverage < local_instance->num_pois) {
+        return false;
+    }
 
     // Checks if the coverage set is made EXCLUSIVELY from the active sensors
-    if (not set_diff(buffer_set, active_sensors).empty()) {return false;}
+    if (not set_diff(buffer_set, active_sensors).empty()) {
+        return false;
+    }
     buffer_set.clear();
 
     // Checks if it has enough connectivity. If not, return false
-    instance->dinic(m, buffer_set);
-    if (buffer_set.empty()) {return false;}
+    local_instance->dinic(m, buffer_set);
+    if (buffer_set.empty()) {
+        return false;
+    }
 
     // Checks if the communication set is made EXCLUSIVELY from the active sensors, or the set is empty
     if (active_sensors.empty()) {return true;}
-    if (not set_diff(buffer_set, active_sensors).empty()) {return false;}
+    if (not set_diff(buffer_set, active_sensors).empty()) {
+        return false;
+    }
 
     // If we got here, success!
     return true;

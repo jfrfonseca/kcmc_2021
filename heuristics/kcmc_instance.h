@@ -6,6 +6,7 @@
 
 // STDLib dependencies
 #include <vector>         // vector object
+#include <set>            // (ordered) set object
 #include <unordered_set>  // unordered_set object
 #include <unordered_map>  // unordered_map HashMap object
 #include <cmath>          // sqrt, pow
@@ -65,22 +66,21 @@ double distance(Placement source, Placement target);
 
 
 bool isin(std::unordered_map<int, std::unordered_set<int>> &ref, int item);
+bool isin(std::unordered_map<int, std::set<int>> &ref, int item);
 bool isin(std::unordered_map<int, int> &ref, int item);
 bool isin(std::unordered_set<int> &ref, int item);
+bool isin(std::set<int> &ref, int item);
+bool isin(const std::set<int> &ref, int item);
 bool isin(std::unordered_set<std::string> &ref, const std::string &item);
 bool isin(std::vector<int> &ref, int item);
 bool isin(std::vector<int> *ref, int item);
 
 
-/* PUSH AND VOTE
- * PUSH: Adds a new pair in a mapping, from the source to a set containing only the target.
+/* PUSH: Adds a new pair in a mapping, from the source to a set containing only the target.
  *       If the source is already in the set, the target is added to its mapped data.
- * VOTE: Adds an element to a map, pointing to the value 1.
- *       It the source element is alreary in the map, increase the value of its mapped data by 1.
  */
 void push(std::unordered_map<int, std::unordered_set<int>> &buffer, int source, int target);
-void vote(std::unordered_map<int, int> &buffer, int target, int value);
-void vote(std::unordered_map<int, int> &buffer, int target);
+void push(std::unordered_map<int, std::set<int>> &buffer, int source, int target);
 
 
 /* SET MERGE & DIFF
@@ -138,6 +138,7 @@ class KCMC_Instance {
          * There are no Poi-Poi, Poi-Sink nor Sink-Sink edges
          */
         std::unordered_map<int, std::unordered_set<int>> poi_sensor, sensor_poi, sensor_sensor, sensor_sink, sink_sensor;
+        std::unordered_map<int, std::set<int>> set_poi_sensor;
 
         /* Random-instance generator constructor
          * Receives the instance descriptive constants and makes an instance of randomly-placed Nodes.
@@ -209,6 +210,11 @@ class KCMC_Instance {
          */
         int parse_edge(int stage, const std::string& token);
 
+        /* Internal support methods for the has-coverage method
+         * poi_coverage gets the set of sensors that covers a POI
+         */
+        void poi_coverage(int num_poi, std::set<int> &set_inactive_sensors, std::set<int> &active_covering_sensors);
+
         /* Internal support methods for the dinic method
          * level_vector fills a vector the distance in hops from each sensor to the sink
          * get_path finds a path between two vertices
@@ -217,11 +223,9 @@ class KCMC_Instance {
         int get_path(int origin, int lv[], std::unordered_set<int> &visited, std::unordered_set<int> &phi);
 
         /* Internal support methods for the optimization methods
-         * invert_sensor_set gets a set of sensors and prepares a set of all sensors not in it
          * add_k_cov adds sensors to a set until the set has K-Coverage
          * strongest_flow_first_search (or "San Francisco First" search) is like DINIC, but prioritizes sensors that are part of many paths
          */
-        void invert_sensor_set(std::unordered_set<int> &source_set, std::unordered_set<int> &target_set);
         int add_k_cov(int k, std::unordered_set<int> &included_sensors);
         int strongest_flow_first_search(int m, bool flood, std::unordered_set<int> &all_visited);
 
